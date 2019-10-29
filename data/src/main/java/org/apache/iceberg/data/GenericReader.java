@@ -59,10 +59,8 @@ class GenericReader implements Serializable {
     this.reuseContainers = reuseContainers;
   }
 
-  CloseableIterator<Record> open(CloseableIterable<CombinedScanTask> tasks) {
-    Iterable<FileScanTask> fileTasks =
-        Iterables.concat(Iterables.transform(tasks, CombinedScanTask::files));
-    return CloseableIterable.concat(Iterables.transform(fileTasks, this::open)).iterator();
+  CloseableIterator<Record> open(CloseableIterable<FileScanTask> tasks) {
+    return CloseableIterable.concat(Iterables.transform(tasks, this::open)).iterator();
   }
 
   public CloseableIterable<Record> open(CombinedScanTask task) {

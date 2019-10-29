@@ -97,6 +97,14 @@ public class IcebergGenerics {
     }
 
     public CloseableIterable<Record> build() {
+      return buildScan();
+    }
+
+    public CloseableIterable<CloseableIterable<Record>> buildFiles() {
+      return buildScan().fileIterable();
+    }
+
+    private TableScanIterable buildScan() {
       return new TableScanIterable(tableScan, reuseContainers);
     }
   }
