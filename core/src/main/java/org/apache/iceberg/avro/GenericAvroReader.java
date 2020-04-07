@@ -32,22 +32,36 @@ import org.apache.iceberg.data.avro.DecoderResolver;
 
 public class GenericAvroReader<T> implements DatumReader<T>, SupportsRowPosition {
 
+  public static <T extends IndexedRecord> GenericAvroReader<T> generics(Schema readSchema) {
+    return new GenericAvroReader<>(readSchema, false);
+  }
+
+  public static <T extends IndexedRecord> GenericAvroReader<T> specifics(Schema readSchema) {
+    return new GenericAvroReader<>(readSchema, true);
+  }
+
   private final Schema readSchema;
   private ClassLoader loader = Thread.currentThread().getContextClassLoader();
   private Schema fileSchema = null;
   private ValueReader<T> reader = null;
+  private final boolean useRecordClasses;
 
   public static <D> GenericAvroReader<D> create(Schema schema) {
     return new GenericAvroReader<>(schema);
   }
 
   GenericAvroReader(Schema readSchema) {
+    this(readSchema, true);
+  }
+
+  GenericAvroReader(Schema readSchema, boolean useRecordClasses) {
     this.readSchema = readSchema;
+    this.useRecordClasses = useRecordClasses;
   }
 
   @SuppressWarnings("unchecked")
   private void initReader() {
-    this.reader = (ValueReader<T>) AvroSchemaVisitor.visit(readSchema, new ReadBuilder(loader));
+    this.reader = (ValueReader<T>) AvroSchemaVisitor.visit(readSchema, new ReadBuilder(loader, useRecordClasses));
   }
 
   @Override
@@ -74,26 +88,29 @@ public class GenericAvroReader<T> implements DatumReader<T>, SupportsRowPosition
 
   private static class ReadBuilder extends AvroSchemaVisitor<ValueReader<?>> {
     private final ClassLoader loader;
+    private final boolean useRecordClasses;
 
-    private ReadBuilder(ClassLoader loader) {
+    private ReadBuilder(ClassLoader loader, boolean useRecordClasses) {
       this.loader = loader;
+      this.useRecordClasses = useRecordClasses;
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public ValueReader<?> record(Schema record, List<String> names, List<ValueReader<?>> fields) {
-      try {
-        Class<?> recordClass =
-            DynClasses.builder().loader(loader).impl(record.getFullName()).buildChecked();
-        if (IndexedRecord.class.isAssignableFrom(recordClass)) {
-          return ValueReaders.record(fields, (Class<? extends IndexedRecord>) recordClass, record);
+      if (useRecordClasses) {
+        try {
+          Class<?> recordClass =
+              DynClasses.builder().loader(loader).impl(record.getFullName()).buildChecked();
+          if (IndexedRecord.class.isAssignableFrom(recordClass)) {
+            return ValueReaders.record(fields, (Class<? extends IndexedRecord>) recordClass, record);
+          }
+        } catch (ClassNotFoundException e) {
+          // use a generic record reader below
         }
-
-        return ValueReaders.record(fields, record);
-
-      } catch (ClassNotFoundException e) {
-        return ValueReaders.record(fields, record);
       }
+
+      return ValueReaders.record(fields, record);
     }
 
     @Override

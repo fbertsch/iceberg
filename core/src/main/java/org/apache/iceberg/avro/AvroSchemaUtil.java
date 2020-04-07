@@ -70,6 +70,14 @@ public class AvroSchemaUtil {
     return convert(type, ImmutableMap.of(type, name));
   }
 
+  public static Schema convert(Type type, String name) {
+    if (type instanceof Types.StructType) {
+      return convert((Types.StructType) type, name);
+    } else {
+      return convert(type);
+    }
+  }
+
   public static Schema convert(Type type, Map<Types.StructType, String> names) {
     return TypeUtil.visit(type, new TypeToSchema(names));
   }
@@ -83,7 +91,7 @@ public class AvroSchemaUtil {
     return new org.apache.iceberg.Schema(fields);
   }
 
-  static boolean hasIds(Schema schema) {
+  public static boolean hasIds(Schema schema) {
     return AvroCustomOrderSchemaVisitor.visit(schema, new HasIds());
   }
 

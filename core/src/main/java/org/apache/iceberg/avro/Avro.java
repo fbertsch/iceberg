@@ -614,7 +614,7 @@ public class Avro {
     @SuppressWarnings("UnnecessaryLambda")
     private final Function<Schema, DatumReader<?>> defaultCreateReaderFunc =
         readSchema -> {
-          GenericAvroReader<?> reader = new GenericAvroReader<>(readSchema);
+          GenericAvroReader<?> reader = GenericAvroReader.specifics(readSchema);
           reader.setClassLoader(loader);
           return reader;
         };
