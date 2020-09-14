@@ -260,6 +260,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
+  public String uuid() {
+    return operations().current().uuid();
+  }
+
+  @Override
   public String toString() {
     return name();
   }

@@ -62,6 +62,7 @@ public class SerializableTable implements Table, Serializable {
   private final EncryptionManager encryption;
   private final LocationProvider locationProvider;
   private final Map<String, SnapshotRef> refs;
+  private final String uuid;
 
   private transient volatile Table lazyTable = null;
   private transient volatile Schema lazySchema = null;
@@ -83,6 +84,7 @@ public class SerializableTable implements Table, Serializable {
     this.encryption = table.encryption();
     this.locationProvider = table.locationProvider();
     this.refs = SerializableMap.copyOf(table.refs());
+    this.uuid = table.uuid();
   }
 
   /**
@@ -245,6 +247,11 @@ public class SerializableTable implements Table, Serializable {
   @Override
   public Map<String, SnapshotRef> refs() {
     return refs;
+  }
+
+  @Override
+  public String uuid() {
+    return uuid;
   }
 
   @Override

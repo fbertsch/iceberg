@@ -207,4 +207,9 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable
   final Object writeReplace() {
     return SerializableTable.copyOf(this);
   }
+
+  @Override
+  public String uuid() {
+    return table().uuid();
+  }
 }

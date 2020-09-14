@@ -346,4 +346,11 @@ public interface Table {
 
     return null;
   }
+
+  /**
+   * Get the uuid for the table.
+   *
+   * @return the table's uuid
+   */
+  String uuid();
 }

@@ -778,6 +778,11 @@ public class BaseTransaction implements Transaction {
       return name();
     }
 
+    @Override
+    public String uuid() {
+      return current.uuid();
+    }
+
     Object writeReplace() {
       return SerializableTable.copyOf(this);
     }
