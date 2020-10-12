@@ -43,17 +43,28 @@ import org.apache.spark.sql.types.TimestampType;
 import org.apache.spark.sql.types.VarcharType;
 
 class SparkTypeToType extends SparkTypeVisitor<Type> {
+
+  public interface MetadataCallback {
+    void accept(int fieldId, String fieldMetadataJson);
+  }
+
   private final StructType root;
-  private int nextId = 0;
+  private final MetadataCallback metadataCallback;
+  private int nextId;
 
   SparkTypeToType() {
-    this.root = null;
+    this(null);
   }
 
   SparkTypeToType(StructType root) {
+    this(root, (id, metadata) -> {});
+  }
+
+  SparkTypeToType(StructType root, MetadataCallback metadataCallback) {
     this.root = root;
     // the root struct's fields use the first ids
-    this.nextId = root.fields().length;
+    this.nextId = root == null ? 0 : root.fields().length;
+    this.metadataCallback = metadataCallback;
   }
 
   private int getNextId() {
@@ -81,6 +92,7 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
       }
 
       String doc = field.getComment().isDefined() ? field.getComment().get() : null;
+      metadataCallback.accept(id, field.metadata().json());
 
       if (field.nullable()) {
         newFields.add(Types.NestedField.optional(id, field.name(), type, doc));

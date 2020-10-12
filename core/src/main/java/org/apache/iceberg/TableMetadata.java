@@ -116,8 +116,10 @@ public class TableMetadata implements Serializable {
 
     // reassign all column ids to ensure consistency
     AtomicInteger lastColumnId = new AtomicInteger(0);
+    Map<Integer, Integer> assignments = Maps.newHashMap();
     Schema freshSchema =
-        TypeUtil.assignFreshIds(INITIAL_SCHEMA_ID, schema, lastColumnId::incrementAndGet);
+        TypeUtil.assignFreshIds(INITIAL_SCHEMA_ID, schema, lastColumnId::incrementAndGet, assignments::put);
+    Map<String, String> newProperties = rebuildProperties(properties, assignments);
 
     // rebuild the partition spec using the new column ids
     PartitionSpec.Builder specBuilder =
@@ -136,7 +138,7 @@ public class TableMetadata implements Serializable {
 
     // Validate the metrics configuration. Note: we only do this on new tables to we don't
     // break existing tables.
-    MetricsConfig.fromProperties(properties).validateReferencedColumns(schema);
+    MetricsConfig.fromProperties(newProperties).validateReferencedColumns(schema);
 
     return new Builder()
         .setInitialFormatVersion(formatVersion)
@@ -144,7 +146,7 @@ public class TableMetadata implements Serializable {
         .setDefaultPartitionSpec(freshSpec)
         .setDefaultSortOrder(freshSortOrder)
         .setLocation(location)
-        .setProperties(properties)
+        .setProperties(newProperties)
         .build();
   }
 
@@ -709,8 +711,10 @@ public class TableMetadata implements Serializable {
         updatedPartitionSpec);
 
     AtomicInteger newLastColumnId = new AtomicInteger(lastColumnId);
+    Map<Integer, Integer> assignments = Maps.newHashMap();
     Schema freshSchema =
-        TypeUtil.assignFreshIds(updatedSchema, schema(), newLastColumnId::incrementAndGet);
+        TypeUtil.assignFreshIds(updatedSchema, schema(), newLastColumnId::incrementAndGet, assignments::put);
+    Map<String, String> rebuiltProperties = rebuildProperties(updatedProperties, assignments);
 
     // rebuild the partition spec using the new column ids and reassign partition field ids to align
     // with existing
@@ -1778,5 +1782,41 @@ public class TableMetadata implements Serializable {
     private <U extends MetadataUpdate> Stream<U> changes(Class<U> updateClass) {
       return changes.stream().filter(updateClass::isInstance).map(updateClass::cast);
     }
+  }
+
+  private static String updateFieldMetadata(String fieldMetadataJson, Map<Integer, Integer> idAssignments) {
+    if (fieldMetadataJson == null) {
+      return null;
+    }
+
+    Map<Integer, String> fieldMetadata = FieldMetadataParser.fromJson(fieldMetadataJson);
+    if (fieldMetadata == null) {
+      return null;
+    }
+
+    Map<Integer, String> remappedFields = Maps.newHashMap();
+    for (Map.Entry<Integer, String> entry : fieldMetadata.entrySet()) {
+      Integer newId = idAssignments.get(entry.getKey());
+      if (newId != null) {
+        remappedFields.put(newId, entry.getValue());
+      }
+    }
+
+    return FieldMetadataParser.toJson(remappedFields);
+  }
+
+  private static Map<String, String> rebuildProperties(Map<String, String> properties,
+                                                       Map<Integer, Integer> assignments) {
+    ImmutableMap.Builder<String, String> newProperties = ImmutableMap.builder();
+    properties.entrySet().stream()
+        .filter(entry -> !TableProperties.FIELD_METADATA_JSON.equals(entry.getKey()))
+        .forEach(newProperties::put);
+
+    String newMetadataJson = updateFieldMetadata(properties.get(TableProperties.FIELD_METADATA_JSON), assignments);
+    if (newMetadataJson != null) {
+      newProperties.put(TableProperties.FIELD_METADATA_JSON, newMetadataJson);
+    }
+
+    return newProperties.build();
   }
 }

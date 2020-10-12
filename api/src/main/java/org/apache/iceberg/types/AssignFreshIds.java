@@ -28,11 +28,18 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   private final Schema visitingSchema;
   private final Schema baseSchema;
   private final TypeUtil.NextID nextId;
+  private final TypeUtil.ReassignCallback reassignCallback;
 
   AssignFreshIds(TypeUtil.NextID nextId) {
-    this.visitingSchema = null;
-    this.baseSchema = null;
-    this.nextId = nextId;
+    this(null, null, nextId);
+  }
+
+  AssignFreshIds(TypeUtil.NextID nextId, TypeUtil.ReassignCallback reassignCallback) {
+    this(null, null, nextId, reassignCallback);
+  }
+
+  AssignFreshIds(Schema visitingSchema, Schema baseSchema, TypeUtil.NextID nextId) {
+    this(visitingSchema, baseSchema, nextId, (id, newId) -> {});
   }
 
   /**
@@ -41,11 +48,14 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
    * @param visitingSchema current schema that will have ids replaced (for id to name lookup)
    * @param baseSchema base schema to assign existing ids from
    * @param nextId new id assigner
+   * @param reassignCallback callback when id reassigned
    */
-  AssignFreshIds(Schema visitingSchema, Schema baseSchema, TypeUtil.NextID nextId) {
+  AssignFreshIds(Schema visitingSchema, Schema baseSchema, TypeUtil.NextID nextId,
+      TypeUtil.ReassignCallback reassignCallback) {
     this.visitingSchema = visitingSchema;
     this.baseSchema = baseSchema;
     this.nextId = nextId;
+    this.reassignCallback = reassignCallback;
   }
 
   private int idFor(String fullName) {
@@ -87,6 +97,7 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     Iterator<Type> types = futures.iterator();
     for (int i = 0; i < length; i += 1) {
       Types.NestedField field = fields.get(i);
+      reassignCallback.accept(field.fieldId(), newIds.get(i));
       Type type = types.next();
       if (field.isOptional()) {
         newFields.add(Types.NestedField.optional(newIds.get(i), field.name(), type, field.doc()));
@@ -106,6 +117,7 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   @Override
   public Type list(Types.ListType list, Supplier<Type> future) {
     int newId = idFor(name(list.elementId()));
+    reassignCallback.accept(list.elementId(), newId);
     if (list.isElementOptional()) {
       return Types.ListType.ofOptional(newId, future.get());
     } else {
@@ -116,7 +128,9 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   @Override
   public Type map(Types.MapType map, Supplier<Type> keyFuture, Supplier<Type> valueFuture) {
     int newKeyId = idFor(name(map.keyId()));
+    reassignCallback.accept(map.keyId(), newKeyId);
     int newValueId = idFor(name(map.valueId()));
+    reassignCallback.accept(map.valueId(), newValueId);
     if (map.isValueOptional()) {
       return Types.MapType.ofOptional(newKeyId, newValueId, keyFuture.get(), valueFuture.get());
     } else {

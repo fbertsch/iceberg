@@ -104,7 +104,8 @@ public class SparkTable
           FORMAT_VERSION,
           "sort-order",
           "identifier-fields",
-          "depends-on-tables");
+          "depends-on-tables",
+          TableProperties.FIELD_METADATA_JSON);
   private static final Set<TableCapability> CAPABILITIES =
       ImmutableSet.of(
           TableCapability.BATCH_READ,
@@ -197,7 +198,8 @@ public class SparkTable
   @Override
   public StructType schema() {
     if (lazyTableSchema == null) {
-      this.lazyTableSchema = SparkSchemaUtil.convert(snapshotSchema());
+      String fieldMetadataJson = icebergTable.properties().get(TableProperties.FIELD_METADATA_JSON);
+      this.lazyTableSchema = SparkSchemaUtil.convert(snapshotSchema(), fieldMetadataJson);
     }
 
     return lazyTableSchema;

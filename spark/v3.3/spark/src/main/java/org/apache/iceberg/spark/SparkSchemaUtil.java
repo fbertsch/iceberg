@@ -95,7 +95,19 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the type cannot be converted to Spark
    */
   public static StructType convert(Schema schema) {
-    return (StructType) TypeUtil.visit(schema, new TypeToSparkType());
+    return convert(schema, (String) null);
+  }
+
+  /**
+   * Convert a {@link Schema} to a {@link DataType Spark type}.
+   *
+   * @param schema a Schema
+   * @param fieldMetadataJson field metadata JSON
+   * @return the equivalent Spark type
+   * @throws IllegalArgumentException if the type cannot be converted to Spark
+   */
+  public static StructType convert(Schema schema, String fieldMetadataJson) {
+    return (StructType) TypeUtil.visit(schema, new TypeToSparkType(fieldMetadataJson));
   }
 
   /**
@@ -106,7 +118,19 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the type cannot be converted to Spark
    */
   public static DataType convert(Type type) {
-    return TypeUtil.visit(type, new TypeToSparkType());
+    return convert(type, null);
+  }
+
+  /**
+   * Convert a {@link Type} to a {@link DataType Spark type}.
+   *
+   * @param type a Type
+   * @param fieldMetadataJson field metadata JSON
+   * @return the equivalent Spark type
+   * @throws IllegalArgumentException if the type cannot be converted to Spark
+   */
+  public static DataType convert(Type type, String fieldMetadataJson) {
+    return TypeUtil.visit(type, new TypeToSparkType(fieldMetadataJson));
   }
 
   /**
@@ -146,7 +170,39 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the type cannot be converted
    */
   public static Schema convert(StructType sparkType, boolean useTimestampWithoutZone) {
-    Type converted = SparkTypeVisitor.visit(sparkType, new SparkTypeToType(sparkType));
+    return convert(sparkType, useTimestampWithoutZone, sparkType1 -> new SparkTypeToType(sparkType1));
+  }
+
+  /**
+   * Convert a Spark {@link StructType struct} to a {@link Schema} with new field ids.
+   *
+   * <p>This conversion assigns fresh ids.
+   *
+   * <p>Some data types are represented as the same Spark type. These are converted to a default
+   * type.
+   *
+   * <p>To convert using a reference schema for field ids and ambiguous types, use {@link
+   * #convert(Schema, StructType)}.
+   *
+   * @param sparkType a Spark StructType
+   * @param useTimestampWithoutZone boolean flag indicates that timestamp should be stored without
+   *     timezone
+   * @param metadataCallback callback for field metadata JSON
+   * @return the equivalent Schema
+   * @throws IllegalArgumentException if the type cannot be converted
+   */
+  public static Schema convert(
+      StructType sparkType,
+      boolean useTimestampWithoutZone,
+      SparkTypeToType.MetadataCallback metadataCallback) {
+    return convert(sparkType, useTimestampWithoutZone, sparkType1 -> new SparkTypeToType(sparkType1, metadataCallback));
+  }
+
+  static Schema convert(
+      StructType sparkType,
+      boolean useTimestampWithoutZone,
+      Function<StructType, SparkTypeToType> constructor) {
+    Type converted = SparkTypeVisitor.visit(sparkType, constructor.apply(sparkType));
     Schema schema = new Schema(converted.asNestedType().asStructType().fields());
     if (useTimestampWithoutZone) {
       schema = SparkFixupTimestampType.fixup(schema);

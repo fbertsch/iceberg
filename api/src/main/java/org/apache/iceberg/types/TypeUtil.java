@@ -225,11 +225,12 @@ public class TypeUtil {
    * @param schemaId an ID assigned to this schema
    * @param schema a schema
    * @param nextId an id assignment function
+   * @param reassignCallback callback when id is reassigned
    * @return a structurally identical schema with new ids assigned by the nextId function
    */
-  public static Schema assignFreshIds(int schemaId, Schema schema, NextID nextId) {
+  public static Schema assignFreshIds(int schemaId, Schema schema, NextID nextId, ReassignCallback reassignCallback) {
     Types.StructType struct =
-        TypeUtil.visit(schema.asStruct(), new AssignFreshIds(nextId)).asStructType();
+        TypeUtil.visit(schema.asStruct(), new AssignFreshIds(nextId, reassignCallback)).asStructType();
     return new Schema(schemaId, struct.fields(), refreshIdentifierFields(struct, schema));
   }
 
@@ -240,11 +241,13 @@ public class TypeUtil {
    * @param schema a schema
    * @param baseSchema a schema with existing IDs to copy by name
    * @param nextId an id assignment function
+   * @param reassignCallback callback when id is reassigned
    * @return a structurally identical schema with new ids assigned by the nextId function
    */
-  public static Schema assignFreshIds(Schema schema, Schema baseSchema, NextID nextId) {
+  public static Schema assignFreshIds(
+      Schema schema, Schema baseSchema, NextID nextId, ReassignCallback reassignCallback) {
     Types.StructType struct =
-        TypeUtil.visit(schema.asStruct(), new AssignFreshIds(schema, baseSchema, nextId))
+        TypeUtil.visit(schema.asStruct(), new AssignFreshIds(schema, baseSchema, nextId, reassignCallback))
             .asStructType();
     return new Schema(struct.fields(), refreshIdentifierFields(struct, schema));
   }
@@ -455,6 +458,12 @@ public class TypeUtil {
   /** Interface for passing a function that assigns column IDs. */
   public interface NextID {
     int get();
+  }
+
+  /** Callback when field ID is reassigned. */
+  @FunctionalInterface
+  public interface ReassignCallback {
+    void accept(int id, int newId);
   }
 
   public static class SchemaVisitor<T> {
