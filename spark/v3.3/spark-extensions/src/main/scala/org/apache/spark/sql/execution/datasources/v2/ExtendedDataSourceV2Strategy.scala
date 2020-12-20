@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import org.apache.iceberg.spark.BaseCatalog
 import org.apache.iceberg.spark.Spark3Util
 import org.apache.iceberg.spark.SparkCatalog
 import org.apache.iceberg.spark.SparkSessionCatalog
@@ -147,6 +148,9 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
     def unapply(identifier: Seq[String]): Option[(TableCatalog, Identifier)] = {
       val catalogAndIdentifier = Spark3Util.catalogAndIdentifier(spark, identifier.asJava)
       catalogAndIdentifier.catalog match {
+        // For netflix catalogs
+        case icebergCatalog: BaseCatalog =>
+          Some((icebergCatalog, catalogAndIdentifier.identifier))
         case icebergCatalog: SparkCatalog =>
           Some((icebergCatalog, catalogAndIdentifier.identifier))
         case icebergCatalog: SparkSessionCatalog[_] =>
