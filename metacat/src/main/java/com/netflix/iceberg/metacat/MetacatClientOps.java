@@ -8,6 +8,7 @@ import com.netflix.metacat.client.Client;
 import com.netflix.metacat.common.QualifiedName;
 import com.netflix.metacat.common.dto.StorageDto;
 import com.netflix.metacat.common.dto.TableDto;
+import com.netflix.metacat.common.exception.MetacatAlreadyExistsException;
 import com.netflix.metacat.common.exception.MetacatBadRequestException;
 import com.netflix.metacat.common.exception.MetacatException;
 import com.netflix.metacat.common.exception.MetacatNotFoundException;
@@ -53,7 +54,6 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 
-import static com.netflix.iceberg.metacat.DefinitionMetadata.AUTH_POLICY;
 import static com.netflix.iceberg.metacat.DefinitionMetadata.SECURE_FLAG;
 import static com.netflix.iceberg.security.SecurityUtil.SIGNER_DEFAULT_APP_NAME;
 import static com.netflix.iceberg.security.SecurityUtil.SIGNER_DEFAULT_URL;
@@ -227,6 +227,8 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
             );
           }
           client.getApi().updateTable(catalog, database, table, newTableInfo);
+        } catch (MetacatPreconditionFailedException e) {
+          throw e;
         } catch (Throwable exception) {
             commitStatus = checkCommitStatus(newMetadataLocation, metadata, database, table);
             handleCommitFailure(exception, commitStatus);
@@ -267,6 +269,8 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
         newTableInfo.getSerde().setOwner(MetacatUtil.getUser());
         try {
           client.getApi().createTable(catalog, database, table, newTableInfo);
+        } catch (MetacatAlreadyExistsException e) {
+          throw e;
         } catch (Throwable exception) {
           commitStatus = checkCommitStatus(newMetadataLocation, metadata, database, table);
           handleCommitFailure(exception, commitStatus);
@@ -282,8 +286,9 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
     } catch (MetacatPreconditionFailedException e) {
       throw new CommitFailedException(e, "Failed to commit due to conflict");
     } catch (MetacatBadRequestException | MetacatUserMetadataException e) {
-      throw new ValidationException(e,
-          "Failed to commit: invalid request", e.getMessage());
+      throw new ValidationException(e, "Failed to commit: invalid request", e.getMessage());
+    } catch (MetacatAlreadyExistsException e) {
+      throw new AlreadyExistsException("Table already exists: %s.%s", database, table);
     } catch (MetacatException e) {
       throw new UncheckedIOException("Failed to commit", new IOException(e));
     } catch (CommitStateUnknownException e) {
