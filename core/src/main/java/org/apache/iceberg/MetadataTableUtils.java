@@ -91,10 +91,32 @@ public class MetadataTableUtils {
       TableIdentifier baseTableIdentifier,
       TableIdentifier metadataTableIdentifier,
       MetadataTableType type) {
-    String baseTableName = BaseMetastoreCatalog.fullTableName(catalogName, baseTableIdentifier);
-    String metadataTableName =
-        BaseMetastoreCatalog.fullTableName(catalogName, metadataTableIdentifier);
+    String baseTableName = fullTableName(catalogName, baseTableIdentifier);
+    String metadataTableName = fullTableName(catalogName, metadataTableIdentifier);
     return createMetadataTableInstance(ops, baseTableName, metadataTableName, type);
+  }
+
+  public static String fullTableName(String catalogName, TableIdentifier identifier) {
+    StringBuilder sb = new StringBuilder();
+
+    if (catalogName.contains("/") || catalogName.contains(":")) {
+      // use / for URI-like names: thrift://host:port/db.table
+      sb.append(catalogName);
+      if (!catalogName.endsWith("/")) {
+        sb.append("/");
+      }
+    } else {
+      // use . for non-URI named catalogs: prod.db.table
+      sb.append(catalogName).append(".");
+    }
+
+    for (String level : identifier.namespace().levels()) {
+      sb.append(level).append(".");
+    }
+
+    sb.append(identifier.name());
+
+    return sb.toString();
   }
 
   private static String metadataTableName(String tableName, MetadataTableType type) {

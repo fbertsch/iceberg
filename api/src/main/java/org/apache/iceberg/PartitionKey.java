@@ -62,7 +62,7 @@ public class PartitionKey implements StructLike, Serializable {
     }
   }
 
-  private PartitionKey(PartitionKey toCopy) {
+  protected PartitionKey(PartitionKey toCopy) {
     this.spec = toCopy.spec;
     this.size = toCopy.size;
     this.partitionTuple = new Object[toCopy.partitionTuple.length];
@@ -70,6 +70,10 @@ public class PartitionKey implements StructLike, Serializable {
     this.accessors = toCopy.accessors;
 
     System.arraycopy(toCopy.partitionTuple, 0, this.partitionTuple, 0, partitionTuple.length);
+  }
+
+  protected PartitionSpec spec() {
+    return spec;
   }
 
   @Override

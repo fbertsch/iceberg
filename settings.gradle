@@ -200,3 +200,8 @@ if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
   }
 }
 
+include 'view'
+include 'metacat'
+
+project(':view').name = 'bdp-view'
+project(':metacat').name = 'iceberg-metacat'

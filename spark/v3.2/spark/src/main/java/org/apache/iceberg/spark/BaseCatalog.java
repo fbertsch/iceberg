@@ -33,7 +33,7 @@ import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureCatalog;
 
-abstract class BaseCatalog
+public abstract class BaseCatalog
     implements StagingTableCatalog,
         ProcedureCatalog,
         SupportsNamespaces,

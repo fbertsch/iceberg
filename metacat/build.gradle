@@ -1,0 +1,51 @@
+ext {
+  sparkVersion = '3.3.100-unstable-22'
+  sparkMajorVersion = '3.3'
+  scalaVersion = System.getProperty("scalaVersion") != null ?
+          System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
+}
+
+dependencies {
+  implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+  api project(':iceberg-core')
+  api project(':iceberg-common')
+  api project(':iceberg-data')
+  implementation(project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}")) {
+    exclude module: 'iceberg-arrow'
+  }
+  api project(':iceberg-aws')
+  api project(':bdp-view')
+  implementation "com.github.ben-manes.caffeine:caffeine"
+  implementation "com.netflix.nflxe2etokens:nflx-e2etokens-common"
+  implementation "netflix:metatron-ipc-common"
+  implementation "com.netflix.metacat:metacat-netflix-client"
+  implementation("com.netflix.s3authsigncde:s3-auth-sign-client:1.0.0-rc.1") {
+    transitive = false
+  }
+  implementation "com.netflix.s3authsigncde:s3-auth-sign-common:1.0.0-rc.1"
+  implementation "com.netflix.bdp:iceberg-acl-storage"
+  implementation 'netflix:dse-metric'
+
+  implementation 'software.amazon.awssdk:regions'
+  implementation 'software.amazon.awssdk:s3'
+  implementation 'software.amazon.awssdk:sts'
+  implementation 'software.amazon.awssdk:url-connection-client'
+
+  compileOnly "org.apache.avro:avro"
+  compileOnly("org.apache.spark:spark-avro_${scalaVersion}:${sparkVersion}") {
+    exclude group: 'org.apache.avro', module: 'avro'
+  }
+  compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${sparkVersion}") {
+    exclude group: 'org.apache.avro', module: 'avro'
+    exclude group: 'com.netflix.iceberg'
+    exclude group: 'org.apache.iceberg'
+  }
+  compileOnly "com.amazonaws:aws-java-sdk-core"
+  compileOnly "com.amazonaws:aws-java-sdk-s3"
+  compileOnly "com.netflix.bdp:bdp-s3fs::shadow"
+
+  compileOnly('org.apache.hadoop:hadoop-client') {
+    exclude group: 'org.apache.avro', module: 'avro'
+    exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+  }
+}

@@ -601,6 +601,41 @@ public class TableMetadata implements Serializable {
         "Invalid table metadata: Cannot find current version");
   }
 
+  public TableMetadata removeReservedProperties(Predicate<String> isPropertyReserved) {
+    if (properties.isEmpty()) {
+      return this;
+    }
+
+    Map<String, String> newProperties = properties.entrySet().stream()
+        .filter(entry -> !isPropertyReserved.test(entry.getKey()))
+        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+    if (properties.entrySet().equals(newProperties.entrySet())) {
+      return this;
+    }
+
+    return new TableMetadata(metadataFileLocation, formatVersion, uuid, location, lastSequenceNumber,
+        System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, newProperties, currentSnapshotId, snapshots,
+        snapshotsSupplier, snapshotLog, previousFiles, refs, statisticsFiles, changes);
+  }
+
+  public TableMetadata withReservedProperties(Map<String, String> reservedProperties) {
+    if (reservedProperties == null || reservedProperties.isEmpty()) {
+      return this;
+    }
+
+    Map<String, String> newProperties = Stream.concat(
+            properties.entrySet().stream(),
+            reservedProperties.entrySet().stream())
+        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b));
+
+    return new TableMetadata(metadataFileLocation, formatVersion, uuid, location, lastSequenceNumber,
+        System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, newProperties, currentSnapshotId, snapshots,
+        snapshotsSupplier, snapshotLog, previousFiles, refs, statisticsFiles, changes);
+  }
+
   private PartitionSpec reassignPartitionIds(PartitionSpec partitionSpec, TypeUtil.NextID nextID) {
     PartitionSpec.Builder specBuilder =
         PartitionSpec.builderFor(partitionSpec.schema()).withSpecId(partitionSpec.specId());

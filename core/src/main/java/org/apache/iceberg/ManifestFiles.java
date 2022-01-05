@@ -132,6 +132,10 @@ public class ManifestFiles {
         file, manifest.partitionSpecId(), specsById, inheritableMetadata, FileType.DATA_FILES);
   }
 
+  public static ManifestReader<DataFile> unsafeRead(InputFile file) {
+    return new ManifestReader<>(file, TableMetadata.INITIAL_SPEC_ID, null, InheritableMetadataFactory.empty(), FileType.DATA_FILES);
+  }
+
   /**
    * Create a new {@link ManifestWriter}.
    *

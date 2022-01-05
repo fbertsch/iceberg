@@ -27,6 +27,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_MIN_WAIT_M
 import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS_DEFAULT;
 
+import java.util.Collections;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -35,6 +36,7 @@ import java.util.function.Predicate;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIO;
@@ -57,6 +59,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   public static final String METADATA_LOCATION_PROP = "metadata_location";
   public static final String PREVIOUS_METADATA_LOCATION_PROP = "previous_metadata_location";
 
+  private static final int COMMIT_STATUS_CHECK_WAIT_MS = 1000;
   private static final String METADATA_FOLDER_NAME = "metadata";
 
   private TableMetadata currentMetadata = null;
@@ -223,7 +226,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     this.shouldRefresh = false;
   }
 
-  private String metadataFileLocation(TableMetadata metadata, String filename) {
+  protected String metadataFileLocation(TableMetadata metadata, String filename) {
     String metadataLocation = metadata.properties().get(TableProperties.WRITE_METADATA_LOCATION);
 
     if (metadataLocation != null) {
@@ -291,7 +294,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     };
   }
 
-  protected enum CommitStatus {
+  public enum CommitStatus {
     FAILURE,
     SUCCESS,
     UNKNOWN
@@ -436,5 +439,64 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
                       "Delete failed for previous metadata file: {}", previousMetadataFile, exc))
           .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
     }
+  }
+
+  /**
+   * Attempt to load the table and see if any current or past metadata location matches the one we were attempting
+   * to set. This is used as a last resort when we are dealing with exceptions that may indicate the commit has
+   * failed but are not proof that this is the case. Past locations must also be searched on the chance that a second
+   * committer was able to successfully commit on top of our commit.
+   *
+   * @param newMetadataLocation the path of the new commit file
+   * @param config metadata to use for configuration
+   * @param database database we are committing to
+   * @param tableName tableName we are committing to
+   * @return Commit Status of Success, Failure or Unknown
+   */
+  protected CommitStatus checkCommitStatus(String newMetadataLocation, TableMetadata config, String database, String tableName) {
+    int maxAttempts = PropertyUtil.propertyAsInt(config == null? Collections.EMPTY_MAP : config.properties(), COMMIT_NUM_STATUS_CHECKS,
+            COMMIT_NUM_STATUS_CHECKS_DEFAULT);
+
+    AtomicReference<CommitStatus> status = new AtomicReference<>(CommitStatus.UNKNOWN);
+
+    Tasks.foreach(newMetadataLocation)
+            .retry(maxAttempts)
+            .suppressFailureWhenFinished()
+            .exponentialBackoff(COMMIT_STATUS_CHECK_WAIT_MS, COMMIT_STATUS_CHECK_WAIT_MS, Long.MAX_VALUE, 2.0)
+            .onFailure((location, checkException) ->
+                    LOG.error("Cannot check if commit to {}.{} exists.", database, tableName, checkException))
+            .run(location -> {
+              TableMetadata metadata = refresh();
+              String currentMetadataLocation = metadata.metadataFileLocation();
+              boolean commitSuccess = currentMetadataLocation.equals(newMetadataLocation) ||
+                      metadata.previousFiles().stream().anyMatch(log -> log.file().equals(newMetadataLocation));
+              if (commitSuccess) {
+                LOG.info("Commit status check: Commit to {}.{} of {} succeeded", database, tableName, newMetadataLocation);
+                status.set(CommitStatus.SUCCESS);
+              } else {
+                LOG.info("Commit status check: Commit to {}.{} of {} failed", database, tableName, newMetadataLocation);
+                status.set(CommitStatus.FAILURE);
+              }
+            });
+
+    if (status.get() == CommitStatus.UNKNOWN) {
+      LOG.error("Cannot determine commit state to {}.{}. Failed during checking {} times. " +
+                      "Treating commit state as unknown.",
+              database, tableName, maxAttempts);
+    }
+    return status.get();
+  }
+
+  protected CommitStatus handleCommitFailure(Throwable failure, CommitStatus commitStatus) throws Throwable
+  {
+    switch (commitStatus) {
+      case SUCCESS:
+        break;
+      case FAILURE:
+        throw failure;
+      case UNKNOWN:
+        throw new CommitStateUnknownException(failure);
+    }
+    return commitStatus;
   }
 }

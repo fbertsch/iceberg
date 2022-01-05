@@ -104,8 +104,9 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         throw new NoSuchTableException("Table does not exist: %s", baseTableIdentifier);
       }
 
-      return MetadataTableUtils.createMetadataTableInstance(
-          ops, name(), baseTableIdentifier, identifier, type);
+      String baseTableName = fullTableName(name(), baseTableIdentifier);
+      String metadataTableName = fullTableName(name(), identifier);
+      return MetadataTableUtils.createMetadataTableInstance(ops, baseTableName, metadataTableName, type);
     } else {
       throw new NoSuchTableException("Table does not exist: %s", identifier);
     }
@@ -282,27 +283,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     }
   }
 
-  protected static String fullTableName(String catalogName, TableIdentifier identifier) {
-    StringBuilder sb = new StringBuilder();
-
-    if (catalogName.contains("/") || catalogName.contains(":")) {
-      // use / for URI-like names: thrift://host:port/db.table
-      sb.append(catalogName);
-      if (!catalogName.endsWith("/")) {
-        sb.append("/");
-      }
-    } else {
-      // use . for non-URI named catalogs: prod.db.table
-      sb.append(catalogName).append(".");
-    }
-
-    for (String level : identifier.namespace().levels()) {
-      sb.append(level).append(".");
-    }
-
-    sb.append(identifier.name());
-
-    return sb.toString();
+  protected String fullTableName(String catalogName, TableIdentifier identifier) {
+    return MetadataTableUtils.fullTableName(catalogName, identifier);
   }
 
   private MetricsReporter metricsReporter() {

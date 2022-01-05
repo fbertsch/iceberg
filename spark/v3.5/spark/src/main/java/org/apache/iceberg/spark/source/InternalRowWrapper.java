@@ -1,4 +1,4 @@
-/*
+v/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -34,18 +34,18 @@ import org.apache.spark.sql.types.StructType;
  * Class to adapt a Spark {@code InternalRow} to Iceberg {@link StructLike} for uses like {@link
  * org.apache.iceberg.PartitionKey#partition(StructLike)}
  */
-class InternalRowWrapper implements StructLike {
+public class InternalRowWrapper implements StructLike {
   private final DataType[] types;
   private final BiFunction<InternalRow, Integer, ?>[] getters;
   private InternalRow row = null;
 
   @SuppressWarnings("unchecked")
-  InternalRowWrapper(StructType rowType) {
+  public InternalRowWrapper(StructType rowType) {
     this.types = Stream.of(rowType.fields()).map(StructField::dataType).toArray(DataType[]::new);
     this.getters = Stream.of(types).map(InternalRowWrapper::getter).toArray(BiFunction[]::new);
   }
 
-  InternalRowWrapper wrap(InternalRow internalRow) {
+  public InternalRowWrapper wrap(InternalRow internalRow) {
     this.row = internalRow;
     return this;
   }

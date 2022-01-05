@@ -108,6 +108,9 @@ public class TableProperties {
   public static final long COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS_DEFAULT =
       30 * 60 * 1000; // 30 minutes
 
+  public static final String CLEANUP_METADATA_ON_COMMIT_FAILURE = "commit.cleanup-metadata-on-failure";
+  public static final boolean CLEANUP_METADATA_ON_COMMIT_FAILURE_DEFAULT = true;
+
   public static final String MANIFEST_TARGET_SIZE_BYTES = "commit.manifest.target-size-bytes";
   public static final long MANIFEST_TARGET_SIZE_BYTES_DEFAULT = 8 * 1024 * 1024; // 8 MB
 

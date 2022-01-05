@@ -155,9 +155,10 @@ public class CachingCatalog implements Catalog {
         TableOperations ops = ((HasTableOperations) originTable).operations();
         MetadataTableType type = MetadataTableType.from(canonicalized.name());
 
-        Table metadataTable =
-            MetadataTableUtils.createMetadataTableInstance(
-                ops, catalog.name(), originTableIdentifier, canonicalized, type);
+        String baseTableName = fullTableName(originTableIdentifier);
+        String metadataTableName = fullTableName(canonicalized);
+        Table metadataTable = MetadataTableUtils.createMetadataTableInstance(
+            ops, baseTableName, metadataTableName, type);
         tableCache.put(canonicalized, metadataTable);
         return metadataTable;
       }
@@ -185,6 +186,7 @@ public class CachingCatalog implements Catalog {
     TableIdentifier canonicalized = canonicalizeIdentifier(ident);
     tableCache.invalidate(canonicalized);
     tableCache.invalidateAll(metadataTableIdentifiers(canonicalized));
+    this.catalog.invalidateTable(canonicalized);
   }
 
   @Override
@@ -192,6 +194,14 @@ public class CachingCatalog implements Catalog {
     Table table = catalog.registerTable(identifier, metadataFileLocation);
     invalidateTable(identifier);
     return table;
+  }
+
+  private String fullTableName(TableIdentifier ident) {
+    if (catalog instanceof BaseMetastoreCatalog) {
+      return ((BaseMetastoreCatalog) catalog).fullTableName(catalog.name(), ident);
+    } else {
+      return MetadataTableUtils.fullTableName(catalog.name(), ident);
+    }
   }
 
   private Iterable<TableIdentifier> metadataTableIdentifiers(TableIdentifier ident) {
