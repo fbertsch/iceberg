@@ -171,6 +171,13 @@ class DefinitionMetadata {
     return metadata;
   }
 
+  /**
+   * Merge children nodes of a and b, value from b is used if a field appears in both.
+   */
+  static ObjectNode overwriteMerge(ObjectNode a, ObjectNode b) {
+    return a.deepCopy().setAll(b.deepCopy());
+  }
+
   private static void addDescription(ObjectNode metadata, TableMetadata base, TableMetadata current) {
     Map<String, String> updates = changedProperties(
         base != null ? base.properties() : null, current.properties(), COMMENT_PROP);

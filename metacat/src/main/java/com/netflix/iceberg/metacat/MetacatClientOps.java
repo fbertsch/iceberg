@@ -2,6 +2,8 @@ package com.netflix.iceberg.metacat;
 
 
 import com.netflix.bdp.security.authorization.AuthPolicy;
+import com.netflix.iceberg.security.MixedFileIO;
+import com.netflix.iceberg.security.S3AuthStrategy;
 import com.netflix.iceberg.security.SecurityContext;
 import com.netflix.iceberg.security.SecurityUtil;
 import com.netflix.metacat.client.Client;
@@ -17,6 +19,8 @@ import com.netflix.metacat.common.exception.MetacatUserMetadataException;
 import com.netflix.metacat.shaded.com.fasterxml.jackson.databind.node.ObjectNode;
 import com.netflix.nflxe2etokens.validation.common.E2eTokenConstants;
 import com.netflix.s3authsign.common.rest.RemoteSigningAccessDeniedException;
+import com.netflix.s3authsign.common.rest.S3StsAccessDeniedException;
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -25,6 +29,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -47,6 +52,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.apache.spark.sql.SparkSession;
@@ -57,7 +63,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 
 import static com.netflix.iceberg.metacat.DefinitionMetadata.SECURE_FLAG;
 import static com.netflix.iceberg.security.SecurityUtil.SIGNER_DEFAULT_APP_NAME;
-import static com.netflix.iceberg.security.SecurityUtil.SIGNER_DEFAULT_URL;
+import static com.netflix.iceberg.security.SecurityUtil.SIGNER_DEFAULT_HOST;
 import static java.lang.String.format;
 import static org.apache.iceberg.BaseMetastoreTableOperations.CommitStatus.FAILURE;
 import static org.apache.iceberg.BaseMetastoreTableOperations.CommitStatus.SUCCESS;
@@ -68,7 +74,8 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
   private static final String SPARK_PROVIDER = "spark.sql.sources.provider";
   private static final Predicate<Exception> RETRY_IF = exc ->
       !exc.getClass().getCanonicalName().contains("Unrecoverable") &&
-      !(exc instanceof RemoteSigningAccessDeniedException);
+      !(exc instanceof RemoteSigningAccessDeniedException) &&
+      !(exc instanceof S3StsAccessDeniedException);
 
   private final Configuration conf;
   private final Client client;
@@ -81,6 +88,8 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
   private FileIO fileIO;
   private final SecurityContext securityContext;
   private boolean hasSpark;
+  private S3AuthStrategy authStrategy;
+  private int stsRefreshIfExpireInSecs;
 
   MetacatClientOps(Configuration conf, Client client, TableIdentifier identifier) {
     this.conf = conf;
@@ -91,6 +100,8 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
     this.table = identifier.name();
     this.fullName = catalog + "." + database + "." + table;
     this.securityContext = new SecurityContext(identifier.toString());
+    this.authStrategy = S3AuthStrategy.valueOf(conf.get("spark.netflix.authz-strategy", "STS"));
+    this.stsRefreshIfExpireInSecs = conf.getInt("spark.netflix.authz.sts.refreshIfExpireInSecs", 300);
 
     try {
       Class.forName("org.apache.spark.sql.SparkSession");
@@ -111,11 +122,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
   public synchronized void doRefresh() {
     String metadataLocation = null;
     try {
-      TableDto tableInfo = client.getApi().getTable(catalog, database, table,
-          true /* send table fields, partition keys */,
-          true /* do not send user definition metadata (including ttl settings) */,
-          false /* do not send user data metadata (?) */);
-
+      TableDto tableInfo = MetacatUtil.getIcebergTable(client, catalog, database, table);
       Map<String, String> tableProperties = tableInfo.getMetadata();
       String tableType = tableProperties.get(TABLE_TYPE_PROP);
       this.secure = DefinitionMetadata.isSecure(tableInfo.getDefinitionMetadata());
@@ -162,31 +169,39 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
   public synchronized void doCommit(TableMetadata base, TableMetadata metadata) {
     ObjectNode definitionMetadata = DefinitionMetadata.buildDefinitionMetadata(base, metadata);
 
-    this.secure = DefinitionMetadata.isSecure(definitionMetadata) || SecurityUtil.isSecure(conf, identifier);
-
-    if (secure && conf.getBoolean("spark.netflix.secure-fileio-enabled", true)) {
-      if(currentVersion() < 0) {
+    if (isCreateNewTable()) {
+      boolean localSecure = DefinitionMetadata.isSecure(definitionMetadata) || shouldCreateSecureTable();
+      if (localSecure && conf.getBoolean("spark.netflix.secure-fileio-enabled", true)) {
         // If a table is being created, signal to the signing service
         securityContext.create(true);
-        metadata = SecurityUtil.updateLocation(conf, identifier, metadata);
+        metadata = updateSecureLocation(metadata);
+        securityContext.setCreationLocation(metadata.location());
         // Add auth_policy for new table
-        String authPolicyStr = conf.get("spark.netflix.authz-policy", AuthPolicy.PERMISSIVE.name());
-        DefinitionMetadata.setAuthPolicy(definitionMetadata, AuthPolicy.valueOf(authPolicyStr));
-      }
+        DefinitionMetadata.setAuthPolicy(definitionMetadata, getAuthPolicy());
+        // Set instance `secure` so that io() is initialized as secure, which will be used for writing meta json
+        this.secure = true;
 
-      //Ensure the table is marked secure
-      if (!DefinitionMetadata.isSecure(definitionMetadata)) {
-        DefinitionMetadata.markSecure(definitionMetadata);
-      }
-
-      //Always ensure that an ACL entry exists for secure tables
-      try {
-        metadata = SecurityUtil.initializeACL(conf, identifier, metadata);
-      } catch (SecurityException e) {
-        if (!DefinitionMetadata.isAuthPolicyPermissive(definitionMetadata)) {
-          throw e;
+        //Ensure the table is marked secure
+        if (!DefinitionMetadata.isSecure(definitionMetadata)) {
+          DefinitionMetadata.markSecure(definitionMetadata);
         }
+
+        //Always ensure that an ACL entry exists for secure tables
+        try {
+          metadata = SecurityUtil.initializeACL(conf, identifier, metadata);
+        } catch (SecurityException e) {
+          if (!DefinitionMetadata.isAuthPolicyPermissive(definitionMetadata)) {
+            throw e;
+          }
+        }
+      } else if (SecurityUtil.isUseSecureLocation(conf)) {
+        // For presto to create table in secure location
+        metadata = updateSecureLocation(metadata);
       }
+    }
+
+    if (secure) {
+      SecurityUtil.validateSecureBuckets(metadata.location(), metadata.properties());
     }
 
     String newMetadataLocation = writeNewMetadata(
@@ -220,6 +235,10 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
             PREVIOUS_METADATA_LOCATION_PROP, currentMetadataLocation()
         ));
 
+        if(secure) {
+          ensureNoLocationUpdate(base, metadata);
+        }
+
         try {
           if (metadata != null &&
               base != null &&
@@ -242,20 +261,16 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
         }
       } else {
         // if creating a migrated table, copy the TTL settings and other definition metadata
-        boolean isMigrated = Boolean.parseBoolean(
-            metadata.properties().getOrDefault("migrated-from-hive", "false"));
-        if (isMigrated) {
+        if (isMigratedFromHive(metadata)) {
           if (table.endsWith("_iceberg")) {
             String backupTableName = table.substring(0, table.length() - 8) + "_hive";
 
             try {
-              TableDto table = client.getApi().getTable(catalog, database, backupTableName,
-                  true /* send table fields, partition keys */,
-                  true /* send user definition metadata (including ttl settings) */,
-                  false /* do not send user data metadata (?) */);
-
-              // copy all of the definition metadata
-              newTableInfo.setDefinitionMetadata(table.getDefinitionMetadata());
+              TableDto table = MetacatUtil.getIcebergTable(client, catalog, database, backupTableName);
+              // copy all of the definition metadata, and merge with new values
+              ObjectNode dmFromBackupTable = table.getDefinitionMetadata();
+              ObjectNode dmMerged = DefinitionMetadata.overwriteMerge(dmFromBackupTable, definitionMetadata);
+              newTableInfo.setDefinitionMetadata(dmMerged);
 
             } catch (MetacatNotFoundException e) {
               LOG.warn("Cannot find backup table {}.{}.{}, not copying definition metadata",
@@ -284,7 +299,10 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
         }
         if(secure && conf.getBoolean("spark.netflix.secure-fileio-enabled", true)) {
           securityContext.create(false);
-          ((S3FileIO) io()).close();
+          securityContext.setCreationLocation(null);
+          if (Closeable.class.isInstance(io())) {
+            Closeable.class.cast(io()).close();
+          }
           this.fileIO = null;
         }
       }
@@ -310,6 +328,25 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
     }
   }
 
+  private static void ensureNoLocationUpdate(TableMetadata base, TableMetadata metadata) {
+    Preconditions.checkArgument(Objects.equals(base.location(), metadata.location()),
+            "Secure table does not allow location update");
+  }
+
+  private static boolean isMigratedFromHive(TableMetadata metadata) {
+    return Boolean.parseBoolean(metadata.properties().getOrDefault("migrated-from-hive", "false"));
+  }
+
+  private AuthPolicy getAuthPolicy() {
+    return SecurityUtil.isStrictDatabase(this.conf, this.identifier) ? AuthPolicy.STRICT :
+            AuthPolicy.valueOf(this.conf.get("spark.netflix.authz-policy", AuthPolicy.PERMISSIVE.name()));
+  }
+
+  private TableMetadata updateSecureLocation(TableMetadata metadata) {
+    metadata = SecurityUtil.updateLocation(conf, identifier, metadata);
+    return metadata;
+  }
+
   @Override
   public FileIO io() {
     if (fileIO == null) {
@@ -324,30 +361,16 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
       }
 
       if (secure && conf.getBoolean("spark.netflix.secure-fileio-enabled", true)) {
-        securityContext.setSignerServiceUrl(conf.get("iceberg.s3.signer.host", SIGNER_DEFAULT_URL));
-        securityContext.setSignerRegion(conf.get("iceberg.s3.signer.region", Region.US_EAST_1.id()));
-
-        final SecurityContext localContext = this.securityContext;
-
-        if (conf.get(E2eTokenConstants.E2ETOKEN_HEADER) != null) {
-          localContext.setE2eTokenSupplier(() -> {
-            if (hasSpark) {
-              return SparkSession.active().sparkContext().hadoopConfiguration().get(E2eTokenConstants.E2ETOKEN_HEADER);
-            } else {
-              return conf.get(E2eTokenConstants.E2ETOKEN_HEADER);
-            }
-          });
-        }
-        final String signerAppName = conf.get("iceberg.s3.signer.app", SIGNER_DEFAULT_APP_NAME);
-        SerializableSupplier<S3Client> clientSupplier = new S3ClientWithSignerSupplier(signerAppName, localContext);
-        fileIO = new S3FileIO(clientSupplier, properties);
+        S3ClientSupplier clientSupplier = createS3ClientSupplier(authStrategy);
+        fileIO = new MixedFileIO(conf, clientSupplier, properties);
       } else if (conf.getBoolean("iceberg.s3fileio-enabled", false)) {
         // Role mapping is to support DAS use case and should be removed after roles are deprecated
         // FIXME: this does not support the bdp-s3fs bucket mapping currently.  It's unclear if role
         //        support will be needed moving forward.
         final String roleArn = conf.get("hive.s3.role.mapping."+database, conf.get("aws.iam.role.arn"));
         final int sessionDurationSecs = conf.getInt("aws.iam.role.session.duration.secs", 3600);
-        SerializableSupplier<S3Client> clientSupplier = new S3ClientWithRoleSupplier(roleArn, sessionDurationSecs);
+        SerializableSupplier<S3Client> clientSupplier = new S3ClientWithRoleSupplier(roleArn, sessionDurationSecs,
+            S3UserAgentProvider.of(conf));
         fileIO = new S3FileIO(clientSupplier, properties);
       } else {
         fileIO = new HadoopFileIO(conf);
@@ -357,19 +380,52 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
     return fileIO;
   }
 
+  private S3ClientSupplier createS3ClientSupplier(S3AuthStrategy authStrategy) {
+    final String signerAppName = conf.get("iceberg.s3.signer.app", SIGNER_DEFAULT_APP_NAME);
+    securityContext.setSignerServiceHost(conf.get("iceberg.s3.signer.host", SIGNER_DEFAULT_HOST));
+    securityContext.setSignerRegion(conf.get("iceberg.s3.signer.region", Region.US_EAST_1.id()));
+    securityContext.setSignerAppName(signerAppName);
+
+    if (conf.get(E2eTokenConstants.E2ETOKEN_HEADER) != null) {
+      securityContext.setE2eTokenSupplier(() -> {
+        if (hasSpark) {
+          return SparkSession.active().sparkContext().hadoopConfiguration().get(E2eTokenConstants.E2ETOKEN_HEADER);
+        } else {
+          return conf.get(E2eTokenConstants.E2ETOKEN_HEADER);
+        }
+      });
+    }
+
+    S3ClientSupplier s3ClientSupplier;
+    switch (authStrategy) {
+      case SIGN:
+        s3ClientSupplier = new S3ClientWithSignerSupplier(securityContext);
+        break;
+      case STS:
+        securityContext.setupStsCredentialsProvider(stsRefreshIfExpireInSecs);
+        s3ClientSupplier = new S3ClientWithStsSupplier(securityContext);
+        break;
+      default:
+        throw new UnsupportedOperationException("Invalid Authentication Strategy: " + authStrategy);
+
+    }
+    return s3ClientSupplier;
+  }
+
   @Override
   public TableOperations temp(TableMetadata uncommittedMetadata) {
-    MetacatClientOps.this.secure = uncommittedMetadata.propertyAsBoolean(SECURE_FLAG, false) ||
-      SecurityUtil.isSecure(conf, identifier);
-    
-    if (secure && conf.getBoolean("spark.netflix.secure-fileio-enabled", true)) {
-      uncommittedMetadata = SecurityUtil.updateLocation(conf, identifier, uncommittedMetadata);
+    if (isCreateNewTable()) {
+      boolean localSecure = uncommittedMetadata.propertyAsBoolean(SECURE_FLAG, false) ||
+              shouldCreateSecureTable();
+      if (localSecure && conf.getBoolean("spark.netflix.secure-fileio-enabled", true)) {
+        uncommittedMetadata = updateSecureLocation(uncommittedMetadata);
 
-      //The purpose of this existence check is actually to trigger the token
-      //creation by the external signer on the driver so the proper identity will
-      //be propagated to the executors when files are created.
-      if (currentVersion() < 0) {
+        //The purpose of this existence check is actually to trigger the token
+        //creation by the external signer on the driver so the proper identity will
+        //be propagated to the executors when files are created.
         securityContext.create(true);
+        securityContext.setCreationLocation(uncommittedMetadata.location());
+        this.secure = true;
         if (io().newInputFile(uncommittedMetadata.location()).exists()) {
           throw new AlreadyExistsException("Table already exists:" + identifier);
         }
@@ -419,6 +475,14 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
         return MetacatClientOps.this.newSnapshotId();
       }
     };
+  }
+
+  private boolean shouldCreateSecureTable() {
+    return SecurityUtil.isSecureDatabase(conf, identifier) || SecurityUtil.isNewTableAlwaysSecure(conf);
+  }
+
+  private boolean isCreateNewTable() {
+    return currentVersion() < 0;
   }
 
   private static final String S3_STAGING_DIRECTORY = "bdp.s3.staging-directory";

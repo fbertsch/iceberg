@@ -8,13 +8,10 @@ import com.netflix.bdp.security.authorization.resource.Catalog;
 import com.netflix.bdp.security.authorization.resource.Schema;
 import com.netflix.bdp.security.authorization.resource.Table;
 import com.netflix.metatron.ipc.MetatronKeyStores;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-
+import com.netflix.metatron.ipc.auth.MetatronAuthContext;
+import com.netflix.metatron.ipc.auth.MetatronAuthContextFactory;
+import com.netflix.metatron.ipc.auth.MetatronUserAuthContext;
+import com.netflix.metatron.ipc.auth.MetatronAppAuthContext;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.nio.file.Files;
@@ -26,32 +23,58 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 import static com.netflix.bdp.security.authorization.AclJsonParser.toJson;
 import static com.netflix.iceberg.security.IcebergAclStorage.ACL_PROPERTY_KEY;
-import static com.netflix.metatron.ipc.MetatronCertificateAttribute.APP_ORIGIN_USER;
-import static com.netflix.metatron.ipc.MetatronCertificateAttribute.USER_CERT_USER_USERNAME;
 import static java.util.Collections.singleton;
+import static org.apache.iceberg.TableProperties.WRITE_METADATA_LOCATION;
 
 public class SecurityUtil {
-  public static final String SIGNER_DEFAULT_URL = "dgws3authsign.bdc.cluster.us-east-1.prod.cloud.netflix.net";
+  public static final String SIGNER_DEFAULT_HOST = "dgws3authsign.bdc.cluster.us-east-1.prod.cloud.netflix.net";
   public static final String SIGNER_DEFAULT_APP_NAME = "dgws3authsign.bdc";
 
-  static final String SECURE_BUCKET = "netflix.warehouse.secure.bucket";
-  static final String DEFAULT_SECURE_BUCKET = "nflx-secure-dataeng-prod-us-east-1";
+  public static final String SECURE_BUCKET = "netflix.warehouse.secure.bucket";
+  public static final String DEFAULT_SECURE_BUCKET = "nflx-secure-dataeng-prod-us-east-1";
+  public static final String SECURE_BUCKET_TEST = "netflix.warehouse.secure.bucket.test";
+  public static final String DEFAULT_SECURE_BUCKET_TEST = "nflx-secure-dataeng-test-us-east-1";
+  public static final String USE_SECURE_LOCATION = "netflix.warehouse.use-secure-location";
   static final String WAREHOUSE_PREFIX = "iceberg/warehouse";
   static final String SECURE_DATABASES = "netflix.warehouse.secure.databases";
+  static final String STRICT_DATABASES = "netflix.warehouse.secure.strict.databases";
   static final String SECURE_DATABASES_DEFAULT = "secure";
+  static final String NEW_TABLE_ALWAYS_SECURE = "netflix.warehouse.secure.always";
   private static final ImmutableMap<String, PrincipalType> GRANTORS = ImmutableMap.of(
     "grantor.role", PrincipalType.GROUP,
     "grantor.user", PrincipalType.USER,
     "grantor", PrincipalType.USER
   );
+  public static final String SECURE_BUCKETS_PROPERTY = "secure-buckets";
+  public static final Map<String, String> SECURE_BUCKETS_FOR_REGIONS = ImmutableMap.<String, String>builder()
+      .put("nflx-secure-dataeng-prod-eu-west-1", "eu-west-1")
+      .put("nflx-secure-dataeng-prod-us-east-1", "us-east-1")
+      .put("nflx-secure-dataeng-prod-us-east-2", "us-east-2")
+      .put("nflx-secure-dataeng-prod-us-west-2", "us-west-2")
+      .put("nflx-secure-dataeng-test-eu-west-1", "eu-west-1")
+      .put("nflx-secure-dataeng-test-us-east-1", "us-east-1")
+      .put("nflx-secure-dataeng-test-us-east-2", "us-east-2")
+      .put("nflx-secure-dataeng-test-us-west-2", "us-west-2")
+      .build();
 
   /**
    * Update a secure table location based on it's uuid and name.
@@ -63,14 +86,55 @@ public class SecurityUtil {
    * @param metadata table metadata
    */
   public static TableMetadata updateLocation(Configuration conf, TableIdentifier identifier, TableMetadata metadata) {
-    String bucket = conf.get(SECURE_BUCKET, DEFAULT_SECURE_BUCKET);
-    String database = identifier.namespace().level(1);
-    String uuid = metadata.uuid();
-    String table = identifier.name();
+    // Remove properties for custom data / metadata location
+    if(metadata.properties().containsKey(WRITE_METADATA_LOCATION)) {
+      Map<String, String> newProperties = Maps.newHashMap(metadata.properties());
+      newProperties.remove(WRITE_METADATA_LOCATION);
+      metadata = metadata.replaceProperties(newProperties);
+    }
 
-    String location = String.format("s3://%s/%s/%s.db/%s/%s", bucket, WAREHOUSE_PREFIX, database, uuid, table);
-
+    String bucket = getSecureBucket(conf, identifier.namespace().level(0));
+    String location = buildSecureTableLocation(bucket, identifier, metadata.uuid());
     return metadata.updateLocation(location);
+  }
+
+  /**
+   * Make sure location is included in secure-buckets property if exists, and all buckets from secure-buckets
+   * property are in the pre-defined secure bucket set.
+   */
+  public static void validateSecureBuckets(String location, Map<String, String> properties) {
+    String bucketsPropStr = properties.get(SECURE_BUCKETS_PROPERTY);
+    if (bucketsPropStr == null) {
+      return;
+    }
+
+    List<String> bucketsFromProps = Arrays.asList(bucketsPropStr.trim().split(","));
+    String metadataBucket = SecurityUtil.extractS3Bucket(location);
+
+    Preconditions.checkArgument(
+        bucketsFromProps.contains(metadataBucket),
+        String.format("Metadata bucket '%s' is not included in table property '%s': %s.",
+            metadataBucket, SECURE_BUCKETS_PROPERTY, bucketsPropStr)
+    );
+
+    List<String> invalidBuckets = Lists.newArrayList(Iterables.filter(bucketsFromProps, b -> !SECURE_BUCKETS_FOR_REGIONS.containsKey(b)));
+    Preconditions.checkArgument(
+        invalidBuckets.isEmpty(),
+        String.format("Found invalid buckets in table property '%s': %s", SECURE_BUCKETS_PROPERTY, invalidBuckets)
+    );
+  }
+
+  private static String getSecureBucket(Configuration conf, String catalog) {
+    if (catalog.toLowerCase(Locale.ROOT).contains("test")) {
+      return conf.get(SECURE_BUCKET_TEST, DEFAULT_SECURE_BUCKET_TEST);
+    }
+    return conf.get(SECURE_BUCKET, DEFAULT_SECURE_BUCKET);
+  }
+
+  public static String buildSecureTableLocation(String bucket, TableIdentifier identifier, String uuid) {
+    String database = identifier.namespace().level(1);
+    String table = identifier.name();
+    return String.format("s3://%s/%s/%s.db/%s/%s", bucket, WAREHOUSE_PREFIX, database, uuid, table);
   }
 
   /**
@@ -218,10 +282,16 @@ public class SecurityUtil {
       X509Certificate certificate = (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(
           new FileInputStream(path.toFile()));
 
-      return Stream.of(USER_CERT_USER_USERNAME, APP_ORIGIN_USER)
-          .filter((e) -> certificate.getNonCriticalExtensionOIDs().contains(e.getOid()))
-          .map((e) -> new String(certificate.getExtensionValue(e.getOid())).trim())
-          .findFirst().orElseThrow(() -> new SecurityException("Failed to locate principal"));
+      MetatronAuthContext context = MetatronAuthContextFactory.fromCertificate(certificate);
+      switch (context.getAuthContextType()) {
+        case USER:
+          return ((MetatronUserAuthContext)context).getUsername();
+        case APP:
+          if (((MetatronAppAuthContext)context).getOriginUser() != null) {
+            return ((MetatronAppAuthContext)context).getOriginUser();
+          }
+      }
+      throw new SecurityException("Failed to locate principal");
     } catch (CertificateException | FileNotFoundException e) {
       throw new SecurityException(e);
     }
@@ -234,11 +304,36 @@ public class SecurityUtil {
    * @param tableIdentifier identifier
    * @return secure flag
    */
-  public static boolean isSecure(Configuration conf, TableIdentifier tableIdentifier) {
+  public static boolean isSecureDatabase(Configuration conf, TableIdentifier tableIdentifier) {
     String database = tableIdentifier.namespace().level(1);
 
     List<String> secureDatabases = Arrays.asList(conf.getStrings(SECURE_DATABASES, SECURE_DATABASES_DEFAULT));
 
     return secureDatabases.contains(database);
   }
+
+  public static boolean isStrictDatabase(Configuration conf, TableIdentifier tableIdentifier) {
+    String database = tableIdentifier.namespace().level(1);
+    Collection<String> strictDataBases = conf.getStringCollection(STRICT_DATABASES);
+    return strictDataBases.contains(database);
+  }
+
+  public static boolean isNewTableAlwaysSecure(Configuration conf) {
+    return conf.getBoolean(NEW_TABLE_ALWAYS_SECURE, false);
+  }
+
+  public static boolean isUseSecureLocation(Configuration conf) {
+    return conf.getBoolean(SecurityUtil.USE_SECURE_LOCATION, false);
+  }
+
+  public static String extractS3Bucket(String path) {
+    if(path != null) {
+      String[] parts = path.split("/");
+      if(parts.length > 2) {
+        return parts[2];
+      }
+    }
+    return "";
+  }
+
 }

@@ -1,6 +1,8 @@
 package com.netflix.iceberg.security;
 
 import com.netflix.s3authsign.signer.NflxAuthS3SignerRest;
+import com.netflix.s3authsign.sts.NflxAuthS3StsRest;
+import com.netflix.s3authsts.common.rest.StsCredentials;
 
 import java.io.Serializable;
 import java.util.Map;
@@ -12,12 +14,15 @@ public class SecurityContext implements Serializable {
   public static final String SIGNER_RESOURCE = "resource";
   public static final String SIGNER_TOKEN = "token";
 
-  private String signerServiceUrl;
+  private String signerServiceHost;
   private String signerRegion;
+  private String signerAppName;
   private final String tableIdentifier;
   private volatile String signerToken;
   private transient Supplier<String> e2eTokenSupplier;
   private boolean create;
+  private String creationLocation;
+  private SerializableAwsCredentialsProvider awsCredentialsProvider;
 
   public SecurityContext(String tableIdentifier) {
     this.tableIdentifier = tableIdentifier;
@@ -46,8 +51,42 @@ public class SecurityContext implements Serializable {
     }
   }
 
+  private NflxAuthS3StsRest getNflxStsClient() {
+    NflxAuthS3StsRest client = NflxAuthS3StsRest.builder()
+            .withHost(signerServiceHost)
+            .withService(signerAppName)
+            .build();
+    if(e2eTokenSupplier != null) {
+      client.setE2eTokenSupplier(e2eTokenSupplier);
+    }
+    return client;
+  }
+
+  public StsCredentials loadStsCredentials() {
+    // Not specifying operations here and server will grant all permissions a user has for now.
+    return getNflxStsClient().getSts(tableIdentifier, null, creationLocation).getCredentials();
+  }
+
+  public void setupStsCredentialsProvider(int refreshIfExpireInSecs) {
+    if(awsCredentialsProvider == null) {
+      this.awsCredentialsProvider = new RefreshableStsProvider(refreshIfExpireInSecs, tableIdentifier, loadStsCredentials(), new SimpleStsRefresher(this));
+    }
+  }
+
   public void create(boolean flag) {
     this.create = flag;
+  }
+
+  public boolean isCreate() {
+    return create;
+  }
+
+  public String getCreationLocation() {
+    return creationLocation;
+  }
+
+  public void setCreationLocation(String creationLocation) {
+    this.creationLocation = creationLocation;
   }
 
   public String tableIdentifier() {
@@ -62,12 +101,20 @@ public class SecurityContext implements Serializable {
     this.signerRegion = signerRegion;
   }
 
-  public String signerServiceUrl() {
-    return signerServiceUrl;
+  public String signerAppName() {
+    return signerAppName;
   }
 
-  public void setSignerServiceUrl(String signerServiceUrl) {
-    this.signerServiceUrl = signerServiceUrl;
+  public void setSignerAppName(String signerAppName) {
+    this.signerAppName = signerAppName;
+  }
+
+  public String signerServiceHost() {
+    return signerServiceHost;
+  }
+
+  public void setSignerServiceHost(String signerServiceHost) {
+    this.signerServiceHost = signerServiceHost;
   }
 
   public String signerToken() {
@@ -84,5 +131,13 @@ public class SecurityContext implements Serializable {
 
   public void setE2eTokenSupplier(Supplier<String> e2eTokenSupplier) {
     this.e2eTokenSupplier = e2eTokenSupplier;
+  }
+
+  public SerializableAwsCredentialsProvider getAwsCredentialsProvider() {
+    return awsCredentialsProvider;
+  }
+
+  public void setAwsCredentialsProvider(SerializableAwsCredentialsProvider awsCredentialsProvider) {
+    this.awsCredentialsProvider = awsCredentialsProvider;
   }
 }

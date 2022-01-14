@@ -20,6 +20,22 @@ configurations {
 }
 
 dependencies {
+//  implementation(platform(libs.awssdk.bom))
+  implementation('software.amazon.awssdk:s3') {
+    exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
+  }
+  implementation('software.amazon.awssdk:kms') {
+    exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
+  }
+  implementation('software.amazon.awssdk:sts') {
+    exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
+  }
+
+  // Added because their transitive dependencies are needed to access secure table with the single bdp-iceberg-client jar
+  implementation(libs.s3authsigncde.s3.auth.sign.client)
+  implementation(libs.s3authsigncde.s3.auth.sts.client)
+  implementation(libs.s3authsigncde.s3.auth.sign.common)
+
   shadow('netflix:dse-metric') {
     transitive = false
   }

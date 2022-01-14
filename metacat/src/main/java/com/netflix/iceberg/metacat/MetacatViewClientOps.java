@@ -72,10 +72,7 @@ class MetacatViewClientOps extends BaseMetastoreViewOperations {
     public synchronized ViewVersionMetadata refresh() {
         String metadataLocation = null;
         try {
-            TableDto tableInfo = client.getApi().getTable(catalog, dbName, viewName,
-                    true /* send table fields, partition keys */,
-                    true /* get user definition metadata */,
-                    false /* do not send user data metadata (?) */);
+            TableDto tableInfo = MetacatUtil.getIcebergTable(client, catalog, dbName, viewName);
 
             Map<String, String> tableProperties = tableInfo.getMetadata();
 

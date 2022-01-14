@@ -21,6 +21,7 @@ package com.netflix.iceberg.metacat;
 
 import com.netflix.metacat.client.Client;
 import com.netflix.metacat.common.dto.DatabaseDto;
+import com.netflix.metacat.common.dto.TableDto;
 import com.netflix.metacat.common.exception.MetacatNotFoundException;
 import com.netflix.metacat.shaded.feign.Request;
 import com.netflix.metacat.shaded.feign.Retryer;
@@ -34,6 +35,19 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 public class MetacatUtil {
   private MetacatUtil() {
+  }
+
+  /**
+   * This call explicitly tells metacat not to load metadata from S3 to reduce load for metacat, so some fields like
+   * schema or partition spec will be empty in response.
+   */
+  public static TableDto getIcebergTable(Client client, String catalog, String database, String table) {
+    return client.getApi().getTable(catalog, database, table,
+            true /* send table fields, partition keys */,
+            true /* send user definition metadata (including ttl settings) */,
+            false /* do not send user data metadata (?) */,
+            false /* do not send info details */,
+            true /* avoid metacat from loading meta data from S3 */);
   }
 
   private static String getUser() {
