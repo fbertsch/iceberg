@@ -23,7 +23,7 @@ subprojects {
             resolutionStrategy {
                 eachDependency { DependencyResolveDetails details ->
                     if (details.requested.group.startsWith('com.fasterxml.jackson.')) {
-                        def jacksonVersion = '2.13.3'
+                        def jacksonVersion = '2.13.+'
                         details.useVersion jacksonVersion
                         details.because "${project.name} is using useVersion to set this dependency version to ${jacksonVersion}"
                     }

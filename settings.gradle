@@ -205,3 +205,12 @@ include 'metacat'
 
 project(':view').name = 'bdp-view'
 project(':metacat').name = 'iceberg-metacat'
+
+include 'client'
+project(':client').name = 'bdp-iceberg-client'
+
+include ':bdp-iceberg'
+project(':bdp-iceberg').projectDir = file('bdp-iceberg')
+
+include ':bdp-iceberg-spark_2.12'
+project(':bdp-iceberg-spark_2.12').projectDir = file('bdp-iceberg-spark')

@@ -1,0 +1,96 @@
+apply plugin: 'com.github.johnrengelman.shadow'
+
+configurations {
+  shadow
+  compileOnly.extendsFrom shadow
+}
+
+configurations {
+  shadow {
+    exclude group: 'org.apache.spark'
+    // included in Spark
+    exclude group: 'org.slf4j'
+    exclude group: 'org.apache.commons'
+    exclude group: 'commons-pool'
+    exclude group: 'commons-codec'
+    exclude group: 'org.xerial.snappy'
+    exclude group: 'javax.xml.bind'
+    exclude group: 'javax.annotation'
+  }
+}
+
+dependencies {
+  shadow('netflix:dse-metric') {
+    transitive = false
+  }
+
+  shadow(project(':iceberg-metacat')) {
+    // exclude transitive dependencies provided by the Spark distribution
+    exclude group: 'org.slf4j'
+    exclude group: 'org.codehaus.jackson'
+    exclude group: 'com.thoughtworks.paranamer'
+    exclude group: 'org.xerial.snappy'
+    exclude group: 'org.tukaani'
+    exclude group: 'org.apache.commons', module: 'commons-compress'
+    exclude group: 'com.netflix.bdp', module: 'metrics'
+    exclude group: 'it.unimi.dsi'
+    exclude group: 'org.apache.spark'
+    exclude group: 'org.apache.orc'
+    exclude group: 'org.apache.hadoop'
+  }
+
+  shadow(project(':bdp-view')) {
+    exclude group: 'com.fasterxml.jackson.core'
+    exclude group: 'org.apache.hadoop'
+    exclude group: 'org.slf4j'
+  }
+}
+
+
+jar {
+  enabled = false
+}
+
+shadowJar {
+  configurations = [project.configurations.shadow]
+
+  zip64 true
+
+  // include the LICENSE and NOTICE files for the shaded Jar
+  from(projectDir) {
+    include 'LICENSE'
+    include 'NOTICE'
+  }
+
+  mergeServiceFiles()
+
+  // Relocate dependencies to avoid conflicts
+  relocate 'com.google', "${relocationPrefix}.com.google"
+  relocate 'com.fasterxml', "${relocationPrefix}.com.fasterxml"
+  relocate 'com.github.benmanes', "${relocationPrefix}.com.github.benmanes"
+  relocate 'org.checkerframework', "${relocationPrefix}.org.checkerframework"
+  relocate 'org.apache.avro', "${relocationPrefix}.org.apache.avro"
+  relocate 'avro.shaded', "${relocationPrefix}.avro.shaded"
+  relocate 'com.thoughtworks.paranamer', "${relocationPrefix}.com.thoughtworks.paranamer"
+  relocate 'org.apache.parquet', "${relocationPrefix}.org.apache.parquet"
+  relocate 'shaded.parquet', "${relocationPrefix}.org.apache.parquet.shaded"
+  // relocate Avro's jackson dependency to share parquet-jackson locations
+  relocate 'org.codehaus.jackson', "${relocationPrefix}.org.apache.parquet.shaded.org.codehaus.jackson"
+  relocate 'org.apache.orc', "${relocationPrefix}.org.apache.orc"
+  relocate 'io.airlift.slice', "${relocationPrefix}.io.airlift.slice"
+  relocate 'io.airlift.compress', "${relocationPrefix}.io.airlift.compress"
+  // relocate Arrow and related deps to shade Iceberg specific version
+  relocate 'io.netty', "${relocationPrefix}.io.netty"
+  relocate 'org.apache.arrow', "${relocationPrefix}.org.apache.arrow"
+  relocate 'com.carrotsearch', "${relocationPrefix}.com.carrotsearch"
+  relocate 'org.threeten.extra', "${relocationPrefix}.org.threeten.extra"
+  relocate 'com.netflix.metatron', "${relocationPrefix}.com.netflix.metatron"
+
+  // Relocate Metacat dependencies to avoid conflicts in Spark
+  // Metacat needs com.fasterxml relocated, which is already done above
+  relocate 'com.netflix.metacat', "${relocationPrefix}.com.netflix.metacat"
+
+  archiveClassifier.set('')
+}
+
+tasks.jar.dependsOn tasks.shadowJar

@@ -119,6 +119,12 @@ allprojects {
     ignore('com.netflix.s3authsigncde:s3-auth-sign-common')
     ignore('com.netflix.s3authsigncde:s3-auth-sts-client')
   }
+
+  nebulaPublishVerification {
+    ignore('com.netflix.s3authsigncde:s3-auth-sign-client')
+    ignore('com.netflix.s3authsigncde:s3-auth-sign-common')
+    ignore('com.netflix.s3authsigncde:s3-auth-sts-client')
+  }
 }
 
 subprojects {

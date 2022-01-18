@@ -1,0 +1,176 @@
+apply plugin: 'com.github.johnrengelman.shadow'
+
+configurations {
+  shadow
+  compileOnly.extendsFrom shadow
+}
+
+shadowJar {
+  configurations = [project.configurations.shadow]
+  from(project.sourceSets.main.output)
+}
+
+tasks.build.dependsOn tasks.shadowJar
+tasks.javadocJar.dependsOn tasks.shadowJar
+
+dependencies {
+  implementation('software.amazon.awssdk:s3') {
+    exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
+  }
+  implementation('software.amazon.awssdk:kms') {
+    exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
+  }
+  implementation('software.amazon.awssdk:sts') {
+    exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
+  }
+
+  // Added because their transitive dependencies are needed to access secure table with the single bdp-iceberg-client jar
+  implementation("com.netflix.s3authsigncde:s3-auth-sign-client")
+  implementation("com.netflix.s3authsigncde:s3-auth-sts-client")
+  implementation("com.netflix.s3authsigncde:s3-auth-sign-common")
+
+  shadow(project(":iceberg-parquet")) {
+    exclude group: 'com.netflix.iceberg' // included with iceberg-data
+    exclude group: 'org.apache.iceberg' // included with iceberg-data
+    exclude group: 'org.codehaus.jackson' // included with parquet-jackson
+    exclude group: 'org.apache.avro'
+    exclude group: 'junit'
+    exclude group: 'org.junit'
+  }
+
+  shadow("com.codahale.metrics:metrics-core")
+  shadow("org.slf4j:jcl-over-slf4j")
+
+  shadow("org.apache.hadoop:hadoop-mapreduce-client-core") {
+    exclude group: 'commons-logging'
+    exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-common'
+    exclude group: 'junit'
+    exclude group: 'org.junit'
+    exclude group: 'io.netty'
+    exclude group: 'org.hsqldb'
+    exclude group: 'org.fusesource.leveldbjni'
+    exclude group: 'com.google.inject'
+    exclude group: 'com.google.inject.extensions'
+    exclude group: 'org.slf4j'
+    exclude group: 'org.apache.log4j'
+    exclude group: 'log4j'
+    exclude group: 'org.codehaus.jackson'
+    exclude group: 'javax.servlet'
+    exclude group: 'javax.servlet.jsp'
+    exclude group: 'com.sun.jersey'
+    exclude group: 'com.sun.jersey.contribs'
+    exclude group: 'org.mortbay.jetty'
+    exclude group: 'net.java.dev.jets3t'
+    exclude group: 'org.apache.avro'
+    exclude group: 'com.google.protobuf'
+    exclude group: 'com.google.code.gson'
+    exclude group: 'com.jcraft'
+    exclude group: 'org.apache.curator'
+    exclude group: 'com.google.code.findbugs'
+    exclude group: 'org.apache.htrace'
+    exclude group: 'org.apache.zookeeper'
+    exclude group: 'org.apache.httpcomponents'
+    exclude group: 'org.apache.directory.api'
+    exclude group: 'org.apache.directory.server'
+  }
+
+  shadow("com.netflix.bdp:bdp-s3fs::shadow") {
+    exclude group: 'commons-logging'
+    exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-common'
+    exclude group: 'junit'
+    exclude group: 'org.junit'
+    exclude group: 'io.netty'
+    exclude group: 'org.hsqldb'
+    exclude group: 'org.fusesource.leveldbjni'
+    exclude group: 'com.google.inject'
+    exclude group: 'com.google.inject.extensions'
+    exclude group: 'org.slf4j'
+    exclude group: 'org.apache.log4j'
+    exclude group: 'log4j'
+    exclude group: 'org.codehaus.jackson'
+    exclude group: 'javax.servlet'
+    exclude group: 'javax.servlet.jsp'
+    exclude group: 'com.sun.jersey'
+    exclude group: 'com.sun.jersey.contribs'
+    exclude group: 'org.mortbay.jetty'
+    exclude group: 'net.java.dev.jets3t'
+    exclude group: 'org.apache.avro'
+    exclude group: 'com.google.protobuf'
+    exclude group: 'com.google.code.gson'
+    exclude group: 'com.jcraft'
+    exclude group: 'org.apache.curator'
+    exclude group: 'com.google.code.findbugs'
+    exclude group: 'org.apache.htrace'
+    exclude group: 'org.apache.zookeeper'
+    exclude group: 'org.apache.directory.api'
+    exclude group: 'org.apache.directory.server'
+    exclude group: 'com.netflix.spectator'
+  }
+
+  shadow(project(':iceberg-metacat')) {
+    exclude group: 'org.tukaani'
+    exclude group: 'com.thoughtworks.paranamer'
+    exclude group: 'com.netflix.iceberg', module: 'iceberg-spark-3.3_2.12'
+    exclude group: 'org.apache.iceberg', module: 'iceberg-spark-3.3_2.12'
+    // exclude transitive dependencies provided by the Spark distribution
+    exclude group: 'org.slf4j'
+    exclude group: 'org.codehaus.jackson'
+    exclude group: 'org.apache.spark'
+    exclude group: 'org.apache.orc'
+    exclude group: 'junit'
+    exclude group: 'org.junit'
+  }
+}
+
+jar {
+  enabled = false
+}
+
+shadowJar {
+
+  zip64 true
+
+  // this contains a fake Level class that is only used for Level.INFO
+  relocate 'org.apache.log4j', "${relocationPrefix}.org.apache.log4j"
+  relocate 'com.google.common', "${relocationPrefix}.com.google.common"
+
+  // Important: jbrotli cannot be relocated because it has native methods
+
+  // Relocate dependencies to avoid conflicts
+  relocate 'com.amazonaws', "${relocationPrefix}.com.amazonaws"
+  relocate 'org.weakref', "${relocationPrefix}.org.weakref"
+  relocate 'org.openjdk.jol', "${relocationPrefix}.org.openjdk.jol"
+  relocate 'org.joda.time', "${relocationPrefix}.org.joda.time"
+  relocate 'com.fasterxml', "${relocationPrefix}.com.fasterxml"
+  relocate 'org.xerial.snappy', "${relocationPrefix}.org.xerial.snappy"
+  relocate 'org.apache.commons', "${relocationPrefix}.org.apache.commons"
+  relocate 'org.apache.avro', "${relocationPrefix}.org.apache.avro"
+  relocate 'avro.shaded', "${relocationPrefix}.avro.shaded"
+  relocate 'shaded.parquet', "${relocationPrefix}.shaded.parquet"
+  // relocate Avro's jackson dependency to share parquet-jackson locations
+  relocate 'org.codehaus.jackson', "${relocationPrefix}.shaded.parquet.org.codehaus.jackson"
+  relocate 'org.apache.parquet', "${relocationPrefix}.org.apache.parquet"
+  relocate 'com.codahale.metrics', "${relocationPrefix}.com.codahale.metrics"
+  relocate 'it.unimi.dsi', "${relocationPrefix}.it.unimi.dsi"
+  relocate 'io.airlift', "${relocationPrefix}.io.airlift"
+  relocate 'com.github.benmanes', "${relocationPrefix}.com.github.benmanes"
+  relocate 'org.znerd', "${relocationPrefix}.org.znerd"
+  relocate 'com.thoughtworks.paranamer', "${relocationPrefix}.com.thoughtworks.paranamer"
+  relocate 'com.codahale.metrics', "${relocationPrefix}.com.codahale.metrics"
+  relocate('com.netflix.bdp', "${relocationPrefix}.com.netflix.bdp") {
+    exclude 'com.netflix.bdp.s3fs.**'
+    exclude 'com.netflix.bdp.security.**'
+    exclude 'com.netflix.bdp.view.**'
+  }
+
+  // Relocate Metacat dependencies to avoid conflicts in Spark
+  // Metacat needs com.fasterxml relocated, which is already done above
+  relocate 'com.netflix.metacat', "${relocationPrefix}.com.netflix.metacat"
+  // Relocate Metatron dependencies to avoid conflicts in Genie
+  relocate 'com.netflix.metatron', "${relocationPrefix}.com.netflix.metatron"
+
+  // Relocate nflxe2etokens dependencies
+  relocate 'com.netflix.nflxe2etokens',"${relocationPrefix}.com.netflix.nflxe2etokens"
+
+  archiveClassifier = null
+}

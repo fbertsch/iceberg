@@ -28,6 +28,11 @@ Iceberg is a high-performance format for huge analytic tables. Iceberg brings th
 Background and documentation is available at <https://iceberg.apache.org>
 
 
+## Netflix Iceberg
+
+This is an internal fork of [Apache Iceberg](https://github.com/apache/iceberg).
+For more details on Netflix Iceberg, open [go/icebergdev](http://go.netflix.com/icebergdev).
+
 ## Status
 
 Iceberg is under active development at the Apache Software Foundation.

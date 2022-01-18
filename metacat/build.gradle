@@ -17,12 +17,21 @@ dependencies {
   api project(':bdp-view')
   implementation "com.github.ben-manes.caffeine:caffeine"
   implementation "com.netflix.nflxe2etokens:nflx-e2etokens-common"
-  implementation "netflix:metatron-ipc-common"
+  api("netflix:metatron-ipc-common:1.307.6") { dep ->
+    because "${project.name} sets ${dep.name} version to ${dep.version} explicitly"
+  }
   implementation "com.netflix.metacat:metacat-netflix-client"
-  implementation("com.netflix.s3authsigncde:s3-auth-sign-client:1.0.0-rc.1") {
+
+  implementation("com.netflix.s3authsigncde:s3-auth-sign-client") {
     transitive = false
   }
-  implementation "com.netflix.s3authsigncde:s3-auth-sign-common:1.0.0-rc.1"
+  implementation("com.netflix.s3authsigncde:s3-auth-sts-client") {
+    transitive = false
+  }
+  implementation("com.netflix.s3authsigncde:s3-auth-sign-common") {
+    transitive = false
+  }
+
   implementation "com.netflix.bdp:iceberg-acl-storage"
   implementation 'netflix:dse-metric'
 
