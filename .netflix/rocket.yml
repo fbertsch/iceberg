@@ -1,0 +1,20 @@
+jenkins:
+  label: jammy && ec2.region:us-west-2
+scm:
+  checkout:
+    prBuildMerge: true
+notifications:
+  email:
+    - to:
+        - bigdatacomputealerts@netflix.com
+      rocketBranch: netflix/\d+\.\d+\.x
+      conditions:
+        - failure
+        - aborted
+  slack:
+    - channel: bdp-deployments
+      rocketBranch: ^v\d+\.\d+\.\d+$
+      conditions:
+        - success
+publish:
+  junit: "*/build/*est-results/*.xml"

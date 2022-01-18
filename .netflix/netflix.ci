@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+
+set -efx
+
+# Get semantic version from git tag, e.g. v0.9.0-rc.333 -> 0.9.0
+semantic_version() {
+  local tag=$(git describe --tags --first-parent --abbrev=0 --match "v*")
+  if [[ -z "${tag}" ]]; then
+    echo "No version tag found, use 0.1.0." >&2
+    echo "0.1.0"
+  elif [[ "${tag}" =~ v([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+    echo ${BASH_REMATCH[1]}
+  else
+    echo "Invalid version tag '${tag}' found, use 0.1.0." >&2
+    echo "0.1.0"
+  fi
+}
+
+# Construct version string for pull request
+pr_version() {
+  short_sha=$(git rev-parse --short ${ROCKET_SHA})
+  echo "$(semantic_version)-pr${ROCKET_PR_NUMBER}.${short_sha}"
+}
+
+if [[ "$1" == '--no-op' ]]; then
+  echo='echo'
+  shift
+else
+  echo=
+fi
+
+gradle="newt exec ./gradlew"
+gradle_options="--stacktrace"
+gradle_tasks="clean"
+
+# Disable hive
+gradle_options+=" -DhiveVersions="
+
+if [[ "$ROCKET_BRANCH" =~ ^netflix/[0-9]+\.[0-9]+\.x$ ]]; then
+  gradle_options+=" -Prelease.scope=patch"
+  gradle_tasks+=" candidate"
+
+elif [[ "${ROCKET_TAG_TYPE}" == "CANDIDATE" ]]; then
+  echo "RC tag notexpected. Fix Jenkins source code branch pattern." >&2
+  false
+
+elif [[ "${ROCKET_TAG_TYPE}" == "FINAL" ]]; then
+  gradle_options+=" -Prelease.useLastTag=true"
+  gradle_tasks+=" final"
+
+elif [[ -n "${ROCKET_PR_NUMBER}" ]]; then
+  gradle_options+=" -Prelease.version=$(pr_version)"
+  gradle_tasks+=" devSnapshot"
+
+else # something always safe to run here
+  gradle_tasks+=" check"
+
+fi
+
+gradle_options+=" ${@}"
+
+${echo} ${gradle} ${gradle_options} ${gradle_tasks}
