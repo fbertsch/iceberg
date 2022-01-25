@@ -180,7 +180,13 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
       }
 
       //Always ensure that an ACL entry exists for secure tables
-      metadata = SecurityUtil.initializeACL(conf, identifier, metadata);
+      try {
+        metadata = SecurityUtil.initializeACL(conf, identifier, metadata);
+      } catch (SecurityException e) {
+        if (!DefinitionMetadata.isAuthPolicyPermissive(definitionMetadata)) {
+          throw e;
+        }
+      }
     }
 
     String newMetadataLocation = writeNewMetadata(

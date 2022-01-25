@@ -116,6 +116,11 @@ class DefinitionMetadata {
     definitionMetadata.put(SECURE_FLAG, true);
   }
 
+  static boolean isAuthPolicyPermissive(ObjectNode definitionMetadata) {
+    String authPolicyStr = DefinitionMetadata.getAuthPolicy(definitionMetadata);
+    return authPolicyStr != null && authPolicyStr.equals(AuthPolicy.PERMISSIVE.name());
+  }
+
   static String getAuthPolicy(ObjectNode definitionMetadata) {
     if(definitionMetadata.hasNonNull(AUTH_POLICY)) {
       return definitionMetadata.get(AUTH_POLICY).asText();
