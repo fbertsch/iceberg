@@ -32,7 +32,11 @@ public class WriteResult implements Serializable {
   private DeleteFile[] deleteFiles;
   private CharSequence[] referencedDataFiles;
 
-  private WriteResult(
+  /**
+   * This constructor is made protected to assist Flink/Iceberg sink implementation at Netflix. More context can be
+   * found at: https://jira.netflix.net/browse/RTDI-2531
+   */
+  protected WriteResult(
       List<DataFile> dataFiles, List<DeleteFile> deleteFiles, CharSequenceSet referencedDataFiles) {
     this.dataFiles = dataFiles.toArray(new DataFile[0]);
     this.deleteFiles = deleteFiles.toArray(new DeleteFile[0]);
