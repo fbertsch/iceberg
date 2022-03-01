@@ -219,7 +219,7 @@ class DefinitionMetadata {
       }
 
       dataDependency.put(VTTS_SECONDS, String.valueOf(timestampSeconds));
-      dataDependency.put(VTTS_UPDATE_USER, MetacatUtil.getUser());
+      dataDependency.put(VTTS_UPDATE_USER, MetacatUtil.getUser(base));
       dataDependency.put(VTTS_UPDATED_AT_SECONDS, System.currentTimeMillis() / 1_000);
     }
 
@@ -246,7 +246,7 @@ class DefinitionMetadata {
         throw new IllegalArgumentException(String.format("Invalid value for %s: %s", DATA_TTL_PROP, ttlUpdate));
       }
 
-      lifetime.put(USER, MetacatUtil.getUser());
+      lifetime.put(USER, MetacatUtil.getUser(base));
       metadata.put(LIFETIME, lifetime);
     }
 

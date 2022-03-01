@@ -267,7 +267,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
         ));
 
         // set the table owner from the current user
-        newTableInfo.getSerde().setOwner(MetacatUtil.getUser());
+        newTableInfo.getSerde().setOwner(MetacatUtil.getUser(metadata));
         try {
           client.getApi().createTable(catalog, database, table, newTableInfo);
         } catch (MetacatAlreadyExistsException e) {

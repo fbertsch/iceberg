@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
@@ -35,7 +36,7 @@ public class MetacatUtil {
   private MetacatUtil() {
   }
 
-  public static String getUser() {
+  private static String getUser() {
     // Match the behavior of Hive's Utils.getUser. If HADOOP_USER_NAME is set, Hive will proxy using the session
     // credentials using doAs, so the effective user is HADOOP_USER_NAME. Otherwise, Hive will use the current
     // credentials to get a username.
@@ -58,6 +59,16 @@ public class MetacatUtil {
     }
   }
 
+  public static String getUser(TableMetadata tableMetadata) {
+    // https://jira.netflix.net/browse/DPS-1156
+    // Look for the table owner in table metadata, if set. Else rely on the user set in env variables.
+    if (tableMetadata != null && tableMetadata.properties() != null
+            && tableMetadata.properties().containsKey("owner")) {
+      return tableMetadata.properties().get("owner");
+    } else {
+      return getUser();
+    }
+  }
   /**
    * Sync the metacat URI between options and conf.
    *
