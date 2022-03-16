@@ -56,7 +56,12 @@ public class CachingCatalog implements Catalog {
 
   public static Catalog wrap(
       Catalog catalog, boolean caseSensitive, long expirationIntervalMillis) {
-    return new CachingCatalog(catalog, caseSensitive, expirationIntervalMillis);
+    return new CachingCatalog(catalog, caseSensitive, expirationIntervalMillis, false);
+  }
+
+  public static Catalog wrap(
+      Catalog catalog, boolean caseSensitive, long expirationIntervalMillis,boolean expireAfterWrite) {
+    return new CachingCatalog(catalog, caseSensitive, expirationIntervalMillis, expireAfterWrite);
   }
 
   private final Catalog catalog;
@@ -68,13 +73,13 @@ public class CachingCatalog implements Catalog {
   @SuppressWarnings("checkstyle:VisibilityModifier")
   protected final Cache<TableIdentifier, Table> tableCache;
 
-  private CachingCatalog(Catalog catalog, boolean caseSensitive, long expirationIntervalMillis) {
-    this(catalog, caseSensitive, expirationIntervalMillis, Ticker.systemTicker());
+  private CachingCatalog(Catalog catalog, boolean caseSensitive, long expirationIntervalMillis, boolean expireAfterWrite) {
+    this(catalog, caseSensitive, expirationIntervalMillis, Ticker.systemTicker(), expireAfterWrite);
   }
 
   @SuppressWarnings("checkstyle:VisibilityModifier")
   protected CachingCatalog(
-      Catalog catalog, boolean caseSensitive, long expirationIntervalMillis, Ticker ticker) {
+      Catalog catalog, boolean caseSensitive, long expirationIntervalMillis, Ticker ticker, boolean expireAfterWrite) {
     Preconditions.checkArgument(
         expirationIntervalMillis != 0,
         "When %s is set to 0, the catalog cache should be disabled. This indicates a bug.",
@@ -82,7 +87,7 @@ public class CachingCatalog implements Catalog {
     this.catalog = catalog;
     this.caseSensitive = caseSensitive;
     this.expirationIntervalMillis = expirationIntervalMillis;
-    this.tableCache = createTableCache(ticker);
+    this.tableCache = createTableCache(ticker, expireAfterWrite);
   }
 
   /**
@@ -102,16 +107,25 @@ public class CachingCatalog implements Catalog {
     }
   }
 
-  private Cache<TableIdentifier, Table> createTableCache(Ticker ticker) {
+  private Cache<TableIdentifier, Table> createTableCache(Ticker ticker, boolean expireAfterWrite) {
     Caffeine<Object, Object> cacheBuilder = Caffeine.newBuilder().softValues();
 
     if (expirationIntervalMillis > 0) {
-      return cacheBuilder
-          .removalListener(new MetadataTableInvalidatingRemovalListener())
-          .executor(Runnable::run) // Makes the callbacks to removal listener synchronous
-          .expireAfterAccess(Duration.ofMillis(expirationIntervalMillis))
-          .ticker(ticker)
-          .build();
+      if (expireAfterWrite) {
+        return cacheBuilder
+                .removalListener(new MetadataTableInvalidatingRemovalListener())
+                .executor(Runnable::run) // Makes the callbacks to removal listener synchronous
+                .expireAfterWrite(Duration.ofMillis(expirationIntervalMillis))
+                .ticker(ticker)
+                .build();
+      } else {
+        return cacheBuilder
+                .removalListener(new MetadataTableInvalidatingRemovalListener())
+                .executor(Runnable::run) // Makes the callbacks to removal listener synchronous
+                .expireAfterAccess(Duration.ofMillis(expirationIntervalMillis))
+                .ticker(ticker)
+                .build();
+      }
     }
 
     return cacheBuilder.build();

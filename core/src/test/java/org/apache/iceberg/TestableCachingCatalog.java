@@ -41,7 +41,7 @@ public class TestableCachingCatalog extends CachingCatalog {
 
   TestableCachingCatalog(
       Catalog catalog, boolean caseSensitive, Duration expirationInterval, Ticker ticker) {
-    super(catalog, caseSensitive, expirationInterval.toMillis(), ticker);
+    super(catalog, caseSensitive, expirationInterval.toMillis(), ticker, false /* expireAfterWrite */);
     this.cacheExpirationInterval = expirationInterval;
   }
 
