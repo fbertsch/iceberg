@@ -223,6 +223,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
       exclude group: 'net.snowflake' , module: 'snowflake-jdbc'
     }
 
+    integrationImplementation 'com.netflix.bdp:metrics:0.3.4'
     integrationImplementation "org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}"
     integrationImplementation "org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive32.get()}"
     integrationImplementation libs.junit.vintage.engine

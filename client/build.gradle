@@ -156,7 +156,6 @@ shadowJar {
   relocate 'com.github.benmanes', "${relocationPrefix}.com.github.benmanes"
   relocate 'org.znerd', "${relocationPrefix}.org.znerd"
   relocate 'com.thoughtworks.paranamer', "${relocationPrefix}.com.thoughtworks.paranamer"
-  relocate 'com.codahale.metrics', "${relocationPrefix}.com.codahale.metrics"
   relocate('com.netflix.bdp', "${relocationPrefix}.com.netflix.bdp") {
     exclude 'com.netflix.bdp.s3fs.**'
     exclude 'com.netflix.bdp.security.**'

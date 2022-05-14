@@ -169,6 +169,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     // for integration testing with the flink-runtime-jar
     // all of those dependencies are required because the integration test extends FlinkTestBase
     integrationCompileOnly project(':iceberg-api')
+    integrationImplementation 'com.netflix.bdp:metrics:0.3.4'
     integrationImplementation libs.junit.vintage.engine
     integrationImplementation libs.assertj.core
     integrationImplementation project(path: ":iceberg-flink:iceberg-flink-${flinkMajorVersion}", configuration: "testArtifacts")

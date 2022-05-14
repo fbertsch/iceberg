@@ -49,6 +49,8 @@ dependencies {
     exclude group: 'com.netflix.iceberg'
     exclude group: 'org.apache.iceberg'
   }
+  // Override Spark transitive version
+  compileOnly "com.netflix.bdp.s3:s3committer:0.12.5"
   compileOnly "com.amazonaws:aws-java-sdk-core"
   compileOnly "com.amazonaws:aws-java-sdk-s3"
   compileOnly "com.netflix.bdp:bdp-s3fs::shadow"
