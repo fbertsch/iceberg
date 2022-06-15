@@ -122,6 +122,7 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO {
 
   @Override
   public InputFile newInputFile(String path) {
+    LOG.info("Opening path: {}", path);
     return S3InputFile.fromLocation(path, client(), s3FileIOProperties, metrics);
   }
 
@@ -132,11 +133,13 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO {
 
   @Override
   public OutputFile newOutputFile(String path) {
+    LOG.info("Creating path: {}", path);
     return S3OutputFile.fromLocation(path, client(), s3FileIOProperties, metrics);
   }
 
   @Override
   public void deleteFile(String path) {
+    LOG.info("Deleting path: {}", path);
     if (s3FileIOProperties.deleteTags() != null && !s3FileIOProperties.deleteTags().isEmpty()) {
       try {
         tagFileToDelete(path, s3FileIOProperties.deleteTags());
