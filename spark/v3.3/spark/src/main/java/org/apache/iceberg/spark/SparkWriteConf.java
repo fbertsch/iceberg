@@ -24,6 +24,7 @@ import static org.apache.iceberg.DistributionMode.RANGE;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.IsolationLevel;
@@ -206,6 +207,8 @@ public class SparkWriteConf {
 
   public Map<String, String> extraSnapshotMetadata() {
     Map<String, String> extraSnapshotMetadata = Maps.newHashMap();
+    Optional.ofNullable(writeOptions.get("depends-on-tables"))
+        .ifPresent(v -> extraSnapshotMetadata.put("dependsOnTables", v));
 
     writeOptions.forEach(
         (key, value) -> {

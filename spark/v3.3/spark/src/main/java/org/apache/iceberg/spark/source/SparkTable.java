@@ -23,6 +23,7 @@ import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
@@ -34,6 +35,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
@@ -101,7 +103,8 @@ public class SparkTable
           "location",
           FORMAT_VERSION,
           "sort-order",
-          "identifier-fields");
+          "identifier-fields",
+          "depends-on-tables");
   private static final Set<TableCapability> CAPABILITIES =
       ImmutableSet.of(
           TableCapability.BATCH_READ,
@@ -222,6 +225,11 @@ public class SparkTable
             : "none";
     propsBuilder.put(CURRENT_SNAPSHOT_ID, currentSnapshotId);
     propsBuilder.put("location", icebergTable.location());
+
+    Optional.ofNullable(icebergTable.currentSnapshot())
+        .map(Snapshot::summary)
+        .flatMap(summary -> PropertyUtil.propertyOrAlternative(summary, "dependsOnTables", "dependsontables"))
+        .ifPresent(v -> propsBuilder.put("depends-on-tables", v));
 
     if (icebergTable instanceof BaseTable) {
       TableOperations ops = ((BaseTable) icebergTable).operations();

@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -175,6 +176,17 @@ public class PropertyUtil {
               });
 
       return updatedProperties;
+    }
+  }
+
+  public static Optional<String> propertyOrAlternative(
+          Map<String, String> properties, String property, String alternativeProperty) {
+    if (properties.containsKey(property)) {
+      return Optional.of(properties.get(property));
+    } else if (properties.containsKey(alternativeProperty)) {
+      return Optional.of(properties.get(alternativeProperty));
+    } else {
+      return Optional.empty();
     }
   }
 }
