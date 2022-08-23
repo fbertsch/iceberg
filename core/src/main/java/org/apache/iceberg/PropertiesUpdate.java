@@ -29,6 +29,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFA
 
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -38,6 +39,7 @@ import org.apache.iceberg.util.Tasks;
 class PropertiesUpdate implements UpdateProperties {
   private final TableOperations ops;
   private final Map<String, String> updates = Maps.newHashMap();
+  private final Map<String, Function<String, String>> transforms = Maps.newHashMap();
   private final Set<String> removals = Sets.newHashSet();
   private TableMetadata base;
 
@@ -52,8 +54,23 @@ class PropertiesUpdate implements UpdateProperties {
     Preconditions.checkNotNull(value, "Value cannot be null");
     Preconditions.checkArgument(
         !removals.contains(key), "Cannot remove and update the same key: %s", key);
+    Preconditions.checkArgument(
+        !transforms.containsKey(key), "Cannot transform and update the same key: %s", key);
 
     updates.put(key, value);
+
+    return this;
+  }
+
+  @Override
+  public UpdateProperties transform(String key, Function<String, String> transformFunc) {
+    Preconditions.checkNotNull(key, "Key cannot be null");
+    Preconditions.checkNotNull(transformFunc, "Transform function cannot be null");
+    Preconditions.checkArgument(!updates.containsKey(key),
+        "Cannot update and transform the same key: %s", key);
+    Preconditions.checkArgument(!removals.contains(key),
+        "Cannot remove and transform the same key: %s", key);
+    transforms.put(key, transformFunc);
 
     return this;
   }
@@ -62,8 +79,9 @@ class PropertiesUpdate implements UpdateProperties {
   public UpdateProperties remove(String key) {
     Preconditions.checkNotNull(key, "Key cannot be null");
     Preconditions.checkArgument(
-        !updates.keySet().contains(key), "Cannot remove and update the same key: %s", key);
-
+        !updates.containsKey(key), "Cannot remove and update the same key: %s", key);
+    Preconditions.checkArgument(
+        !transforms.containsKey(key), "Cannot remove and transform the same key: %s", key);
     removals.add(key);
 
     return this;
@@ -83,6 +101,14 @@ class PropertiesUpdate implements UpdateProperties {
     for (Map.Entry<String, String> entry : base.properties().entrySet()) {
       if (!removals.contains(entry.getKey())) {
         newProperties.put(entry.getKey(), entry.getValue());
+      }
+    }
+
+    // Apply transforms
+    for (Map.Entry<String, Function<String, String>> entry : transforms.entrySet()) {
+      String newValue = entry.getValue().apply(newProperties.get(entry.getKey()));
+      if (newValue != null) {
+        newProperties.put(entry.getKey(), newValue);
       }
     }
 

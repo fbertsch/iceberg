@@ -1045,6 +1045,10 @@ acceptedBreaks:
         \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
         \ extends org.apache.iceberg.ScanTask>>::filter()"
       justification: "Move a method to the parent interface"
+    - code: "java.method.addedToInterface"
+      new: "method org.apache.iceberg.UpdateProperties org.apache.iceberg.UpdateProperties::transform(java.lang.String,\
+        \ java.util.function.Function<java.lang.String, java.lang.String>)"
+      justification: "A new method is added to the Interface, and the implementation is provided in its only subclass."
     - code: "java.method.numberOfParametersChanged"
       old: "method void org.apache.iceberg.events.IncrementalScanEvent::<init>(java.lang.String,\
         \ long, long, org.apache.iceberg.expressions.Expression, org.apache.iceberg.Schema)"
