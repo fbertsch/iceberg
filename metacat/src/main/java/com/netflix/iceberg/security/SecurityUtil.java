@@ -1,6 +1,8 @@
 package com.netflix.iceberg.security;
 
 import com.netflix.bdp.security.authorization.Acl;
+import com.netflix.bdp.security.authorization.AclUtils;
+import com.netflix.bdp.security.authorization.MembershipChecker;
 import com.netflix.bdp.security.authorization.Privilege;
 import com.netflix.bdp.security.authorization.principal.NetflixPrincipal;
 import com.netflix.bdp.security.authorization.principal.NetflixPrincipal.PrincipalType;
@@ -8,10 +10,10 @@ import com.netflix.bdp.security.authorization.resource.Catalog;
 import com.netflix.bdp.security.authorization.resource.Schema;
 import com.netflix.bdp.security.authorization.resource.Table;
 import com.netflix.metatron.ipc.MetatronKeyStores;
+import com.netflix.metatron.ipc.auth.MetatronAppAuthContext;
 import com.netflix.metatron.ipc.auth.MetatronAuthContext;
 import com.netflix.metatron.ipc.auth.MetatronAuthContextFactory;
 import com.netflix.metatron.ipc.auth.MetatronUserAuthContext;
-import com.netflix.metatron.ipc.auth.MetatronAppAuthContext;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.nio.file.Files;
@@ -59,6 +61,7 @@ public class SecurityUtil {
   static final String STRICT_DATABASES = "netflix.warehouse.secure.strict.databases";
   static final String SECURE_DATABASES_DEFAULT = "secure";
   static final String NEW_TABLE_ALWAYS_SECURE = "netflix.warehouse.secure.always";
+  static final String SAVE_ACL_AS_ID = "netflix.warehouse.secure.save-acl-as-id";
   private static final ImmutableMap<String, PrincipalType> GRANTORS = ImmutableMap.of(
     "grantor.role", PrincipalType.GROUP,
     "grantor.user", PrincipalType.USER,
@@ -96,6 +99,17 @@ public class SecurityUtil {
     String bucket = getSecureBucket(conf, identifier.namespace().level(0));
     String location = buildSecureTableLocation(bucket, identifier, metadata.uuid());
     return metadata.updateLocation(location);
+  }
+
+  public static String getSignerHost(Configuration conf) {
+    return conf.get("iceberg.s3.signer.host", SIGNER_DEFAULT_HOST);
+  }
+
+  static MembershipChecker getMembershipChecker(Configuration conf) {
+    if(conf.getBoolean(SAVE_ACL_AS_ID, true)) {
+      return MembershipCheckerFactory.getOrCreate(getSignerHost(conf), true);
+    }
+    return MembershipCheckerFactory.NO_OP_CHECKER;
   }
 
   /**
@@ -168,6 +182,8 @@ public class SecurityUtil {
 
     // Explicitly add all for grantor
     acls.add(new Acl(singleton(grantor), singleton(Privilege.ALL), singleton(resource), grantor, true ));
+    // Map all account names to ids before saving acls
+    acls = AclUtils.mapNameToId(acls, getMembershipChecker(conf));
 
     // create updated properties and remove grants
     Map<String, String> newProperties = metadata.properties().entrySet().stream()

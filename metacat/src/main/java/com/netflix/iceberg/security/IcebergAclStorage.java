@@ -1,12 +1,10 @@
 package com.netflix.iceberg.security;
 
-import static com.netflix.bdp.security.authorization.AclJsonParser.toJson;
-import static com.netflix.bdp.security.authorization.AclStorage.extractResourceToAcls;
-import static com.netflix.bdp.security.authorization.Privilege.ALL;
-
 import com.netflix.bdp.security.authorization.Acl;
 import com.netflix.bdp.security.authorization.AclJsonParser;
 import com.netflix.bdp.security.authorization.AclStorage;
+import com.netflix.bdp.security.authorization.AclUtils;
+import com.netflix.bdp.security.authorization.MembershipChecker;
 import com.netflix.bdp.security.authorization.Privilege;
 import com.netflix.bdp.security.authorization.principal.NetflixPrincipal;
 import com.netflix.bdp.security.authorization.resource.Resource;
@@ -18,19 +16,37 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+
+import static com.netflix.bdp.security.authorization.AclJsonParser.toJson;
+import static com.netflix.bdp.security.authorization.AclStorage.extractResourceToAcls;
+import static com.netflix.bdp.security.authorization.Privilege.ALL;
 
 public class IcebergAclStorage implements AclStorage {
 
   private final Catalog catalog;
+  private MembershipChecker membershipChecker = MembershipCheckerFactory.NO_OP_CHECKER;
   public static final String ACL_PROPERTY_KEY = "acls";
 
   public IcebergAclStorage(Catalog catalog) {
     this.catalog = catalog;
+  }
+
+  /**
+   * With a provided membershipChecker, all names in ACLs will be mapped to ids before saved.
+   * @param catalog
+   * @param membershipChecker used to get the name to id mapping.
+   */
+  public IcebergAclStorage(Catalog catalog, MembershipChecker membershipChecker) {
+    this.catalog = catalog;
+    this.membershipChecker = membershipChecker;
   }
 
   @Override
@@ -48,6 +64,13 @@ public class IcebergAclStorage implements AclStorage {
     return Collections.EMPTY_SET;
   }
 
+  private Set<Acl> getAcls(String aclStr) {
+    if (aclStr != null) {
+      return AclJsonParser.fromJson(aclStr);
+    }
+    return Collections.EMPTY_SET;
+  }
+
   @Override
   public void add(Set<Acl> acls) {
     Map<Resource, Set<Acl>> resourceToAcls = extractResourceToAcls(acls);
@@ -58,14 +81,18 @@ public class IcebergAclStorage implements AclStorage {
 
   private void add(Resource resource, Set<Acl> acls) {
     Table table = catalog.loadTable(toTableIdentifier(resource));
-    acls.addAll(getAcls(table));
-    String aclJson = toJson(acls);
-    updateAclProperty(table, aclJson);
+    transformAclProperty(table, existingAclsStr -> {
+      Set<Acl> newAcls = Sets.newHashSet();
+      newAcls.addAll(getAcls(existingAclsStr));
+      newAcls.addAll(acls);
+      newAcls = AclUtils.mapNameToId(newAcls, membershipChecker);
+      return toJson(newAcls);
+    });
   }
 
-  private void updateAclProperty(Table table, String aclJson) {
+  private void transformAclProperty(Table table, Function<String, String> transformFunc) {
     UpdateProperties updateProperties = table.updateProperties();
-    updateProperties.set(ACL_PROPERTY_KEY, aclJson);
+    updateProperties.transform(ACL_PROPERTY_KEY, acl -> transformFunc.apply(acl));
     updateProperties.commit();
   }
 
@@ -81,7 +108,18 @@ public class IcebergAclStorage implements AclStorage {
 
   private boolean remove(Resource resourceToRemove, Set<Acl> aclsToRemove) {
     Table table = catalog.loadTable(toTableIdentifier(resourceToRemove));
-    Set<Acl> existingAcls = getAcls(table);
+    AtomicBoolean anyAclRemoved = new AtomicBoolean(false);
+    transformAclProperty(table, aclsStr -> removeAcls(aclsStr, resourceToRemove, aclsToRemove, anyAclRemoved));
+    return anyAclRemoved.get();
+  }
+
+  private String removeAcls(String existingAclsStr, Resource resourceToRemove, Set<Acl> aclsToRemove, AtomicBoolean removed) {
+    Set<Acl> existingAcls = getAcls(existingAclsStr);
+
+    // Normalize both acls to use ids only
+    existingAcls = AclUtils.mapNameToId(existingAcls, membershipChecker);
+    aclsToRemove = AclUtils.mapNameToId(aclsToRemove, membershipChecker);
+
     Map<Resource, Set<Acl>> currentAclsMap = extractResourceToAcls(existingAcls);
 
     Set<Acl> newAcls = new HashSet<>();
@@ -135,10 +173,8 @@ public class IcebergAclStorage implements AclStorage {
         }
       }
     }
-
-    String aclJson = toJson(newAcls);
-    updateAclProperty(table, aclJson);
-    return !newAcls.equals(currentAcls);
+    removed.set(!newAcls.equals(currentAcls));
+    return toJson(newAcls);
   }
 
   private TableIdentifier toTableIdentifier(Resource resource) {

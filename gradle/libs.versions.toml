@@ -75,6 +75,8 @@ aws-java-sdk = "1.11.749"
 s3authsigncde = "1.6.0"
 metrics = "3.0.1"
 metacat = "1.3.106"
+dse-metric = "1.8.0"
+bdp = "0.1.20"
 
 [libraries]
 activation = { module = "javax.activation:activation", version.ref = "activation" }
@@ -159,11 +161,14 @@ snowflake-jdbc = { module = "net.snowflake:snowflake-jdbc", version.ref = "snowf
 # Netflix specific dependencies
 aws-java-sdk-core = { module = "com.amazonaws:aws-java-sdk-core", version.ref = "aws-java-sdk" }
 aws-java-sdk-s3 = { module = "com.amazonaws:aws-java-sdk-s3", version.ref = "aws-java-sdk" }
+bdp-iceberg-acl-storage = { module = "com.netflix.bdp:iceberg-acl-storage", version.ref = "bdp" }
+bdp-gandalf = { module = "com.netflix.bdp:bdp-gandalf", version.ref = "bdp" }
 s3authsigncde-s3-auth-sign-client = { module = "com.netflix.s3authsigncde:s3-auth-sign-client", version.ref = "s3authsigncde" }
 s3authsigncde-s3-auth-sts-client = { module = "com.netflix.s3authsigncde:s3-auth-sts-client", version.ref = "s3authsigncde" }
 s3authsigncde-s3-auth-sign-common = { module = "com.netflix.s3authsigncde:s3-auth-sign-common", version.ref = "s3authsigncde" }
 metrics-core = { module = "com.codahale.metrics:metrics-core", version.ref = "metrics" }
 metacat-netflix-client = { module = "com.netflix.metacat:metacat-netflix-client", version.ref = "metacat" }
+dse-metric = { module = "netflix:dse-metric", version.ref = "dse-metric" }
 
 # test libraries
 assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj-core" }

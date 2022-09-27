@@ -63,7 +63,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 
 import static com.netflix.iceberg.metacat.DefinitionMetadata.SECURE_FLAG;
 import static com.netflix.iceberg.security.SecurityUtil.SIGNER_DEFAULT_APP_NAME;
-import static com.netflix.iceberg.security.SecurityUtil.SIGNER_DEFAULT_HOST;
+import static com.netflix.iceberg.security.SecurityUtil.getSignerHost;
 import static java.lang.String.format;
 import static org.apache.iceberg.BaseMetastoreTableOperations.CommitStatus.FAILURE;
 import static org.apache.iceberg.BaseMetastoreTableOperations.CommitStatus.SUCCESS;
@@ -382,7 +382,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
 
   private S3ClientSupplier createS3ClientSupplier(S3AuthStrategy authStrategy) {
     final String signerAppName = conf.get("iceberg.s3.signer.app", SIGNER_DEFAULT_APP_NAME);
-    securityContext.setSignerServiceHost(conf.get("iceberg.s3.signer.host", SIGNER_DEFAULT_HOST));
+    securityContext.setSignerServiceHost(getSignerHost(conf));
     securityContext.setSignerRegion(conf.get("iceberg.s3.signer.region", Region.US_EAST_1.id()));
     securityContext.setSignerAppName(signerAppName);
 
