@@ -75,7 +75,8 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
   private static final Predicate<Exception> RETRY_IF = exc ->
       !exc.getClass().getCanonicalName().contains("Unrecoverable") &&
       !(exc instanceof RemoteSigningAccessDeniedException) &&
-      !(exc instanceof S3StsAccessDeniedException);
+      !(exc instanceof S3StsAccessDeniedException) &&
+      !(exc instanceof NullPointerException);
 
   private final Configuration conf;
   private final Client client;
