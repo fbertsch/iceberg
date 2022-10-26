@@ -103,7 +103,7 @@ public class FileHelpers {
   public static DataFile writeDataFile(Table table, OutputFile out, List<Record> rows)
       throws IOException {
     FileFormat format = defaultFormat(table.properties());
-    GenericAppenderFactory factory = new GenericAppenderFactory(table.schema());
+    GenericAppenderFactory factory = new GenericAppenderFactory(table.schema()).setAll(table.properties());
 
     FileAppender<Record> writer = factory.newAppender(out, format);
     try (Closeable toClose = writer) {

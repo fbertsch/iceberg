@@ -145,7 +145,8 @@ public class TableProperties {
 
   public static final String PARQUET_COMPRESSION = "write.parquet.compression-codec";
   public static final String DELETE_PARQUET_COMPRESSION = "write.delete.parquet.compression-codec";
-  public static final String PARQUET_COMPRESSION_DEFAULT = "gzip";
+  // FIXME : Remove post 1.4.x because zstd is the new default. Keeping rn to not break legacy files from flink(?)
+  public static final String PARQUET_COMPRESSION_DEFAULT = "zstd";
   public static final String PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0 = "zstd";
 
   public static final String PARQUET_COMPRESSION_LEVEL = "write.parquet.compression-level";
