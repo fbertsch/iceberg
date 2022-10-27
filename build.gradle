@@ -17,14 +17,7 @@
  * under the License.
  */
 
-import groovy.transform.Memoized
-import java.util.regex.Matcher
-import java.util.regex.Pattern
-
 buildscript {
-  repositories {
-    gradlePluginPortal()
-  }
   dependencies {
     classpath 'com.github.johnrengelman:shadow:8.1.1'
     classpath 'com.palantir.baseline:gradle-baseline-java:4.42.0'
@@ -40,7 +33,6 @@ buildscript {
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
     classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.1'
-    classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.0.0'
   }
 }
 
@@ -48,12 +40,6 @@ String scalaVersion = System.getProperty("scalaVersion") != null ? System.getPro
 String sparkVersionsString = System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")
 List<String> sparkVersions = sparkVersionsString != null && !sparkVersionsString.isEmpty() ? sparkVersionsString.split(",") : []
 
-try {
-  // apply these plugins in a try-catch block so that we can handle cases without .git directory
-  apply plugin: 'com.palantir.git-version'
-} catch (Exception e) {
-  project.logger.error(e.getMessage())
-}
 
 if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
   project.ext.jdkVersion = '8'
@@ -113,49 +99,30 @@ if (file("${rootDir}/iceberg-build.properties").exists()) {
   }
 }
 
-def projectVersion = getProjectVersion()
-final REVAPI_PROJECTS = ["iceberg-api", "iceberg-core", "iceberg-parquet", "iceberg-orc", "iceberg-common", "iceberg-data"]
 
 allprojects {
-  group = "org.apache.iceberg"
-  version = projectVersion
-  repositories {
-    mavenCentral()
-    mavenLocal()
+  group = "com.netflix.iceberg"
+  apply plugin: 'netflix.nebula'
+  apply plugin: 'nebula.release'
+
+  nebula {
+    moduleOwner = 'BigDataPlatform@netflix.com'
+    moduleEmail = 'BigDataPlatform@netflix.com'
+  }
+
+  nebulaRelease {
+    addReleaseBranchPattern('netflix/1.4.x')
+  }
+
+  nebulaPublishVerification {
+    ignore('com.netflix.s3authsigncde:s3-auth-sign-client')
+    ignore('com.netflix.s3authsigncde:s3-auth-sign-common')
+    ignore('com.netflix.s3authsigncde:s3-auth-sts-client')
   }
 }
 
 subprojects {
-  apply plugin: 'java-library'
-
-  if (project.name in REVAPI_PROJECTS) {
-    apply plugin: 'com.palantir.revapi'
-    revapi {
-      oldGroup = project.group
-      oldName = project.name
-      oldVersion = "1.3.0"
-    }
-
-    tasks.register('showDeprecationRulesOnRevApiFailure') {
-      doLast {
-        throw new RuntimeException("==================================================================================" +
-                "\nAPI/ABI breaks detected.\n" +
-                "Adding RevAPI breaks should only be done after going through a deprecation cycle." +
-                "\nPlease make sure to follow the deprecation rules defined in\n" +
-                "https://github.com/apache/iceberg/blob/master/CONTRIBUTING.md#semantic-versioning.\n" +
-                "==================================================================================")
-      }
-      onlyIf {
-        tasks.revapi.state.failure != null
-      }
-    }
-
-    tasks.configureEach { rootTask ->
-      if (rootTask.name == 'revapi') {
-        rootTask.finalizedBy showDeprecationRulesOnRevApiFailure
-      }
-    }
-  }
+  apply plugin: 'netflix.jvm-library'
 
   configurations {
     testImplementation.extendsFrom compileOnly
@@ -175,6 +142,9 @@ subprojects {
       exclude group: 'com.sun.jersey'
       exclude group: 'com.sun.jersey.contribs'
       exclude group: 'org.pentaho', module: 'pentaho-aggdesigner-algorithm'
+
+      // Prevent transitive netty dependencies
+      exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
     }
 
     testArtifacts
@@ -192,8 +162,6 @@ subprojects {
     options.encoding = 'UTF-8'
   }
 
-  sourceCompatibility = '1.8'
-  targetCompatibility = '1.8'
 
   dependencies {
     implementation libs.slf4j.api
@@ -235,10 +203,8 @@ subprojects {
     }
   }
 
-  plugins.withType(ScalaPlugin.class) {
-    tasks.withType(ScalaCompile.class) {
-      scalaCompileOptions.keepAliveMode.set(KeepAliveMode.DAEMON)
-    }
+  tasks.withType(JavaCompile).configureEach {
+    options.fork = true
   }
 }
 
@@ -940,52 +906,4 @@ project(':iceberg-snowflake') {
   }
 }
 
-@Memoized
-boolean versionFileExists() {
-  return file('version.txt').exists()
-}
-
-@Memoized
-String getVersionFromFile() {
-  return file('version.txt').text.trim()
-}
-
-String getProjectVersion() {
-  if (versionFileExists()) {
-    return getVersionFromFile()
-  }
-
-  try {
-    // we're fetching the version from the latest tag (prefixed with 'apache-iceberg-'),
-    // which can look like this: '0.13.0-2-g805400f0.dirty' but we're only interested in the MAJOR.MINOR.PATCH part
-    String version = gitVersion(prefix: 'apache-iceberg-')
-    Pattern pattern = Pattern.compile("^([0-9]+)\\.([0-9]+)\\.([0-9]+)(.*)?\$")
-    Matcher matcher = pattern.matcher(version)
-    if (matcher.matches()) {
-      // bump the MINOR version and always set the PATCH version to 0
-      return matcher.group(1) + "." + (Integer.valueOf(matcher.group(2)) + 1) + ".0-SNAPSHOT"
-    }
-    return version
-  } catch (Exception e) {
-    throw new Exception("Neither version.txt nor git version exists: " + e.getMessage(), e)
-  }
-}
-
-String getJavadocVersion() {
-  if (versionFileExists()) {
-    return getVersionFromFile()
-  }
-
-  try {
-    // use the branch name in place of version in Javadoc
-    return versionDetails().branchName
-  } catch (NullPointerException e) {
-    throw new Exception("Neither version.txt nor git version exists")
-  }
-}
-
-apply from: 'jmh.gradle'
-apply from: 'baseline.gradle'
-apply from: 'deploy.gradle'
-apply from: 'tasks.gradle'
-
+apply from: 'netflix.gradle'

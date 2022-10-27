@@ -66,6 +66,7 @@ project(':iceberg-mr') {
     testImplementation libs.calcite.core
     testImplementation libs.kryo.shaded
     testImplementation libs.jackson.annotations
+    // overriding default versions for Hive3
     testImplementation(libs.hive2.service) {
       exclude group: 'org.apache.hive', module: 'hive-exec'
     }
