@@ -76,7 +76,7 @@ s3authsigncde = "1.6.0"
 metrics = "3.0.1"
 metacat = "1.3.106"
 dse-metric = "1.8.0"
-bdp = "0.1.20"
+bdp = "0.1.25"
 
 [libraries]
 activation = { module = "javax.activation:activation", version.ref = "activation" }

@@ -1,7 +1,10 @@
 package com.netflix.iceberg.security;
 
+import com.netflix.bdp.security.authentication.PrincipalExtractor;
+import com.netflix.bdp.security.authentication.RequestIdentity;
 import com.netflix.bdp.security.authorization.Acl;
 import com.netflix.bdp.security.authorization.AclUtils;
+import com.netflix.bdp.security.authorization.AuthPolicy;
 import com.netflix.bdp.security.authorization.MembershipChecker;
 import com.netflix.bdp.security.authorization.Privilege;
 import com.netflix.bdp.security.authorization.principal.NetflixPrincipal;
@@ -16,12 +19,15 @@ import com.netflix.metatron.ipc.auth.MetatronAuthContextFactory;
 import com.netflix.metatron.ipc.auth.MetatronUserAuthContext;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -38,9 +44,11 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 import static com.netflix.bdp.security.authorization.AclJsonParser.toJson;
 import static com.netflix.iceberg.security.IcebergAclStorage.ACL_PROPERTY_KEY;
@@ -56,6 +64,11 @@ public class SecurityUtil {
   public static final String SECURE_BUCKET_TEST = "netflix.warehouse.secure.bucket.test";
   public static final String DEFAULT_SECURE_BUCKET_TEST = "nflx-secure-dataeng-test-us-east-1";
   public static final String USE_SECURE_LOCATION = "netflix.warehouse.use-secure-location";
+  private static final String BEGIN = "-----BEGIN CERTIFICATE-----\n";
+  private static final String END = "\n-----END CERTIFICATE-----\n";
+  public static final String COMMON_ACCESS_ROLE = "common-access@bdp";
+  public static final String COMMON_ACCESS_ROLE_ID = "jOmLWubLeyaS2qODuDknRYoChhZVbHDb";
+  public static final Set<NetflixPrincipal> COMMON_ACCESS_GROUPS = ImmutableSet.of(NetflixPrincipal.group(COMMON_ACCESS_ROLE_ID));
   static final String WAREHOUSE_PREFIX = "iceberg/warehouse";
   static final String SECURE_DATABASES = "netflix.warehouse.secure.databases";
   static final String STRICT_DATABASES = "netflix.warehouse.secure.strict.databases";
@@ -112,6 +125,10 @@ public class SecurityUtil {
     return MembershipCheckerFactory.NO_OP_CHECKER;
   }
 
+  static PrincipalExtractor getPrincipalExtractor(Configuration conf) {
+    return PrincipalExtractorFactory.getOrCreate(getSignerHost(conf), true);
+  }
+
   /**
    * Make sure location is included in secure-buckets property if exists, and all buckets from secure-buckets
    * property are in the pre-defined secure bucket set.
@@ -155,14 +172,15 @@ public class SecurityUtil {
    * Set the ACL for a newly created table.  This includes the ability to configure ACLs for ETL jobs
    * by setting grants for users/roles.  The environment is used to identify the Metatron identity and
    * use that as the initial owner.
-   *
+   * <p>
    * grant.select.users
    * grant.insert.roles
    *
-   * @param metadata table metadata
    * @param identifier identifier
+   * @param metadata   table metadata
+   * @param authPolicy
    */
-  public static TableMetadata initializeACL(Configuration conf, TableIdentifier identifier, TableMetadata metadata){
+  public static TableMetadata initializeACL(Configuration conf, TableIdentifier identifier, TableMetadata metadata, AuthPolicy authPolicy){
     if(metadata.properties().containsKey(ACL_PROPERTY_KEY)) {
       return metadata;
     }
@@ -172,16 +190,44 @@ public class SecurityUtil {
     String table = identifier.name();
 
     Table resource = new Table(new Schema(new Catalog(catalog), database), table, metadata.uuid());
-    final NetflixPrincipal grantor = findGrantor(conf, metadata);
+    NetflixPrincipal grantorFromConfAndProps = findExplicitGrantor(conf, metadata);
 
     Map<Privilege, Set<NetflixPrincipal>> grants = parseGrants(conf, metadata.properties());
 
     Set<Acl> acls = grants.entrySet().stream()
-        .map(e -> new Acl(e.getValue(), singleton(e.getKey()), singleton(resource), grantor, false))
+        .map(e -> new Acl(e.getValue(), singleton(e.getKey()), singleton(resource), grantorFromConfAndProps, false))
         .collect(Collectors.toSet());
 
     // Explicitly add all for grantor
-    acls.add(new Acl(singleton(grantor), singleton(Privilege.ALL), singleton(resource), grantor, true ));
+    if(grantorFromConfAndProps != null) {
+      acls.add(new Acl(singleton(grantorFromConfAndProps), singleton(Privilege.ALL), singleton(resource), grantorFromConfAndProps, true ));
+    }
+
+    // No explicit grants set from conf and properties
+    NetflixPrincipal localPrincipal = null;
+    if (acls.isEmpty()) {
+      localPrincipal = resolveLocalPrincipal(conf);
+      if (localPrincipal.type() == PrincipalType.USER) {
+        acls.add(new Acl(singleton(localPrincipal), singleton(Privilege.ALL), singleton(resource), localPrincipal, true));
+      } else if (authPolicy == AuthPolicy.STRICT && localPrincipal.type() == PrincipalType.APPLICATION) {
+        if (getMembershipChecker(conf).isMember(localPrincipal, COMMON_ACCESS_GROUPS)) {
+          acls.add(new Acl(COMMON_ACCESS_GROUPS, Sets.newHashSet(com.netflix.bdp.security.authorization.Privilege.ALL), Sets.newHashSet(resource), localPrincipal, false));
+        } else {
+          throw new RuntimeException("Failed to create table: user account not found and application account "
+              + localPrincipal.getName() + " is not member of " + COMMON_ACCESS_ROLE + ". See more details at: "
+              + "https://manuals.netflix.net/view/go_data/mkdocs/master/sdw/common-access/");
+        }
+      }
+    }
+
+    // Add local identity as grantor if no grantor specified by user
+    if(acls.stream().noneMatch(acl -> acl.withGrant() != null && acl.withGrant().booleanValue())) {
+      if(localPrincipal == null) {
+        localPrincipal = resolveLocalPrincipal(conf);
+      }
+      acls.add(new Acl(singleton(localPrincipal), singleton(Privilege.ALL), singleton(resource), localPrincipal, true));
+    }
+
     // Map all account names to ids before saving acls
     acls = AclUtils.mapNameToId(acls, getMembershipChecker(conf));
 
@@ -194,7 +240,7 @@ public class SecurityUtil {
     return metadata.replaceProperties(newProperties);
   }
 
-  private static NetflixPrincipal findGrantor(Configuration conf, TableMetadata metadata) {
+  private static NetflixPrincipal findExplicitGrantor(Configuration conf, TableMetadata metadata) {
     /* Check metadata properties first */
     NetflixPrincipal grantor = findGrantorInMap(metadata.properties());
 
@@ -209,11 +255,6 @@ public class SecurityUtil {
           .flatMap(Collection::stream)
           .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
       );
-    }
-
-    /* Still no grantor, try local metatron */
-    if (grantor == null) {
-      grantor = NetflixPrincipal.user(resolvePrincipal());
     }
 
     return grantor;
@@ -288,7 +329,7 @@ public class SecurityUtil {
    *
    * @return principal identifier
    */
-  private static String resolvePrincipal() {
+  private static NetflixPrincipal resolveLocalPrincipal(Configuration conf) {
     try {
       Path path = MetatronKeyStores.getMetatronHomeDirs().stream()
         .map(p -> ImmutableList.of(p.resolve("user.crt"), p.resolve("client.crt"))).flatMap(Collection::stream)
@@ -301,16 +342,31 @@ public class SecurityUtil {
       MetatronAuthContext context = MetatronAuthContextFactory.fromCertificate(certificate);
       switch (context.getAuthContextType()) {
         case USER:
-          return ((MetatronUserAuthContext)context).getUsername();
+          return NetflixPrincipal.user(((MetatronUserAuthContext)context).getUsername());
         case APP:
+          MetatronAppAuthContext appAuthContext =(MetatronAppAuthContext)context;
           if (((MetatronAppAuthContext)context).getOriginUser() != null) {
-            return ((MetatronAppAuthContext)context).getOriginUser();
+            return NetflixPrincipal.user(appAuthContext.getOriginUser());
+          } else {
+            NetflixPrincipal appPrincipal = getPrincipalExtractor(conf).getPrincipal(new RequestIdentity(certToString(certificate)));
+            Preconditions.checkArgument(appPrincipal.subjectJson().isPresent(), "Application principal has no not subjectJson");
+            Preconditions.checkArgument(appPrincipal.type() == PrincipalType.APPLICATION, "Principal type from extractor is not application");
+            return appPrincipal;
           }
+        default:
+          throw new RuntimeException("Invalid identity type: " + context.getAuthContextType());
       }
-      throw new SecurityException("Failed to locate principal");
     } catch (CertificateException | FileNotFoundException e) {
       throw new SecurityException(e);
     }
+  }
+
+  public static String certToString(X509Certificate cert) throws CertificateEncodingException {
+    StringBuilder certBuilder = new StringBuilder();
+    certBuilder.append(BEGIN)
+        .append(new String(Base64.getEncoder().encode(cert.getEncoded()), StandardCharsets.UTF_8))
+        .append(END);
+    return certBuilder.toString();
   }
 
   /**

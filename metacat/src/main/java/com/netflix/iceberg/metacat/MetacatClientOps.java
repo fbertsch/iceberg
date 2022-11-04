@@ -178,7 +178,8 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
         metadata = updateSecureLocation(metadata);
         securityContext.setCreationLocation(metadata.location());
         // Add auth_policy for new table
-        DefinitionMetadata.setAuthPolicy(definitionMetadata, getAuthPolicy());
+        AuthPolicy authPolicy = getAuthPolicy();
+        DefinitionMetadata.setAuthPolicy(definitionMetadata, authPolicy);
         // Set instance `secure` so that io() is initialized as secure, which will be used for writing meta json
         this.secure = true;
 
@@ -189,7 +190,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
 
         //Always ensure that an ACL entry exists for secure tables
         try {
-          metadata = SecurityUtil.initializeACL(conf, identifier, metadata);
+          metadata = SecurityUtil.initializeACL(conf, identifier, metadata, authPolicy);
         } catch (SecurityException e) {
           if (!DefinitionMetadata.isAuthPolicyPermissive(definitionMetadata)) {
             throw e;

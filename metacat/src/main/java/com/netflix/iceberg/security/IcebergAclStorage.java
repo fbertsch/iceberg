@@ -59,14 +59,16 @@ public class IcebergAclStorage implements AclStorage {
     Map<String, String> properties = table.properties();
     if (properties.containsKey(ACL_PROPERTY_KEY)) {
       String aclsJson = properties.get(ACL_PROPERTY_KEY);
-      return AclJsonParser.fromJson(aclsJson);
+      return getAcls(aclsJson);
     }
     return Collections.EMPTY_SET;
   }
 
   private Set<Acl> getAcls(String aclStr) {
     if (aclStr != null) {
-      return AclJsonParser.fromJson(aclStr);
+      Set<Acl> acls = AclJsonParser.fromJson(aclStr);
+      AclUtils.lowercaseResourceNames(acls);
+      return acls;
     }
     return Collections.EMPTY_SET;
   }
@@ -86,6 +88,7 @@ public class IcebergAclStorage implements AclStorage {
       newAcls.addAll(getAcls(existingAclsStr));
       newAcls.addAll(acls);
       newAcls = AclUtils.mapNameToId(newAcls, membershipChecker);
+      AclUtils.lowercaseResourceNames(newAcls);
       return toJson(newAcls);
     });
   }
@@ -118,7 +121,9 @@ public class IcebergAclStorage implements AclStorage {
 
     // Normalize both acls to use ids only
     existingAcls = AclUtils.mapNameToId(existingAcls, membershipChecker);
+    AclUtils.lowercaseResourceNames(existingAcls);
     aclsToRemove = AclUtils.mapNameToId(aclsToRemove, membershipChecker);
+    AclUtils.lowercaseResourceNames(aclsToRemove);
 
     Map<Resource, Set<Acl>> currentAclsMap = extractResourceToAcls(existingAcls);
 
