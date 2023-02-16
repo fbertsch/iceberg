@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -83,13 +84,22 @@ class FileFormatScan extends BaseScan {
                                     StructType expectedSchema, List<Filter> rowFilters,
                                     Map<String, String> options) {
       org.apache.spark.sql.execution.datasources.FileFormat format = table.format();
+      boolean supportBatch = format.supportBatch(spark, expectedSchema);
+
+      ImmutableMap.Builder<String, String> optionsBuilder = ImmutableMap.builder();
+      optionsBuilder.putAll(options);
+      // SPARK-40918 requires passing this option to buildReaderWithPartitionValues
+      // TODO: Replace "returning_batch" with FileFormat.OPTION_RETURNING_BATCH
+      //       after Spark version is upgraded to 3.3.2
+      optionsBuilder.put("returning_batch", String.valueOf(supportBatch));
+
       this.buildReaderFunc = format.buildReaderWithPartitionValues(
           spark, table.schema(),
           table.partitionSchema(),
           SparkTables.dataProjection(expectedSchema, table.partitionSchema()), // must exclude partition columns
-          JavaConverters.asScalaBufferConverter(rowFilters).asScala(), ScalaUtil.asScala(options),
+          JavaConverters.asScalaBufferConverter(rowFilters).asScala(), ScalaUtil.asScala(optionsBuilder.build()),
           spark.sessionState().newHadoopConf());
-      this.isColumnar = format.supportBatch(spark, expectedSchema);
+      this.isColumnar = supportBatch;
     }
 
     @Override
