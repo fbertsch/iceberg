@@ -30,6 +30,9 @@ dependencies {
     transitive = false
   }
 
+  // Include local hive catalog for unit testing
+  shadow(project(path: ':iceberg-hive-metastore'))
+
   shadow(project(':iceberg-metacat')) {
     // exclude transitive dependencies provided by the Spark distribution
     exclude group: 'org.slf4j'
