@@ -118,6 +118,7 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO {
     this.s3 = s3;
     this.s3FileIOProperties = s3FileIOProperties;
     this.createStack = Thread.currentThread().getStackTrace();
+    this.properties = SerializableMap.copyOf(Maps.newHashMap());
   }
 
   @Override
