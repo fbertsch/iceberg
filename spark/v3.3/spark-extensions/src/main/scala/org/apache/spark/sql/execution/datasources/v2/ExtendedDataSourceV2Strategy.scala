@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import com.netflix.bdp.sender.DeleteEventSender
 import org.apache.iceberg.spark.BaseCatalog
 import org.apache.iceberg.spark.Spark3Util
 import org.apache.iceberg.spark.SparkCatalog
@@ -124,7 +125,11 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
         }
         filter
       }.toArray
-      DeleteFromTableExec(r.table.asDeletable, filters, refreshCache(r)) :: Nil
+      val sendDeleteEvent = new DeleteEventSender(
+        r.table.name,
+        deleteCond.sql,
+        null)
+      DeleteFromIcebergTableExec(r.table.asDeletable, filters, refreshCache(r), sendDeleteEvent) :: Nil
 
     case NoStatsUnaryNode(child) =>
       planLater(child) :: Nil
