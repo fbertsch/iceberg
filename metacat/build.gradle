@@ -55,7 +55,7 @@ dependencies {
   compileOnly "com.netflix.bdp.s3:s3committer:0.12.5"
   compileOnly libs.aws.java.sdk.core
   compileOnly libs.aws.java.sdk.s3
-  compileOnly "com.netflix.bdp:bdp-s3fs:0.1.29:shadow"
+  compileOnly "${libs.bdp.s3fs.get().module}:${libs.bdp.s3fs.get().version}:shadow"
 
   compileOnly(libs.hadoop2.client) {
     exclude group: 'org.apache.avro', module: 'avro'

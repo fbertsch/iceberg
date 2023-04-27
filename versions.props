@@ -53,7 +53,7 @@ org.awaitility:awaitility = 4.2.0
 # netflix deps
 <!-- com.amazonaws:aws-java-sdk-* = 1.11.749 -->
 <!-- com.codahale.metrics:metrics-core = 3.0.1 -->
-<!-- com.netflix.bdp:bdp-s3fs = 0.1.29 -->
+<!-- com.netflix.bdp:bdp-s3fs = 0.1.31 -->
 <!-- com.netflix.bdp:iceberg-acl-storage = 0.1.25 -->
 <!-- com.netflix.bdp:bdp-gandalf = 0.1.25 -->
 com.netflix.dp.s3authsign:s3-auth-sign-client = 0.1.0-rc.18 <!-- FIXME : Might be deprecated-->
