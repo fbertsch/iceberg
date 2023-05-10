@@ -52,8 +52,6 @@ public class SparkReadConf {
   private final Map<String, String> readOptions;
   private final SparkConfParser confParser;
 
-  private final String netflixTargetSizeSparkConf;
-
   public SparkReadConf(SparkSession spark, Table table, Map<String, String> readOptions) {
     this(spark, table, null, readOptions);
   }
@@ -65,7 +63,6 @@ public class SparkReadConf {
     this.branch = branch;
     this.readOptions = readOptions;
     this.confParser = new SparkConfParser(spark, table, readOptions);
-    netflixTargetSizeSparkConf = String.format("spark.netflix.%s.target-size", table.name());
   }
 
   public boolean caseSensitive() {
@@ -183,7 +180,7 @@ public class SparkReadConf {
 
   public Long splitSizeOption() {
     return confParser.longConf()
-        .sessionConf(netflixTargetSizeSparkConf)
+        .sessionConf(netflixTargetSizeConfName())
         .option(SparkReadOptions.SPLIT_SIZE)
         .parseOptional();
   }
@@ -191,10 +188,19 @@ public class SparkReadConf {
   public long splitSize() {
     return confParser
         .longConf()
+        .sessionConf(netflixTargetSizeConfName())
         .option(SparkReadOptions.SPLIT_SIZE)
         .tableProperty(TableProperties.SPLIT_SIZE)
         .defaultValue(TableProperties.SPLIT_SIZE_DEFAULT)
         .parse();
+  }
+
+  private String netflixTargetSizeConfName() {
+    String[] names = table.name().split("\\.", 2);
+    if (names.length > 1) {
+      return String.format("spark.netflix.%s.target-size", names[1]);
+    }
+    return "";
   }
 
   public Integer splitLookbackOption() {

@@ -15,51 +15,133 @@
 package org.apache.iceberg.spark;
 
 import com.google.common.collect.ImmutableMap;
+import java.util.Map;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
+import org.apache.spark.sql.RuntimeConfig;
+import org.apache.spark.sql.SparkSession;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import java.util.Map;
+public class SparkReadConfTest {
 
-import static org.junit.Assert.*;
+    private SparkSession spark;
+    private Table table;
 
-public class SparkReadConfTest extends SparkTestBase {
-
-    Table table = Mockito.mock(Table.class);
-
-    @Test
-    public void splitSizeFromOption() {
-        long splitSize = 12345;
-        Map<String, String> options = ImmutableMap.of(SparkReadOptions.SPLIT_SIZE, Long.toString(splitSize));
-        SparkReadConf readConf = new SparkReadConf(spark, table, options);
-        Assert.assertEquals(splitSize, readConf.splitSizeOption().longValue());
-    }
-
-    @Test
-    public void splitSizeFromConf() {
-        long splitSize = 67890000;
-        Mockito.when(table.name()).thenReturn("db.tbl");
-        spark.conf().set("spark.netflix.db.tbl.target-size", Long.toString(splitSize));
-        SparkReadConf readConf = new SparkReadConf(spark, table, ImmutableMap.of());
-        Assert.assertEquals(splitSize, readConf.splitSizeOption().longValue());
-    }
-
-    @Test
-    public void splitSizeFromBoth() {
-        long splitSizeOption = 12345;
-        long splitSizeConf = 67890000;
-        Map<String, String> options = ImmutableMap.of(SparkReadOptions.SPLIT_SIZE, Long.toString(splitSizeOption));
-        Mockito.when(table.name()).thenReturn("db.tbl");
-        spark.conf().set("spark.netflix.db.tbl.target-size", Long.toString(splitSizeConf));
-        SparkReadConf readConf = new SparkReadConf(spark, table, options);
-        Assert.assertEquals("Read option overrides Spark config",
-                splitSizeOption, readConf.splitSizeOption().longValue());
+    @Before
+    public void Setup() {
+        RuntimeConfig conf = Mockito.mock(RuntimeConfig.class);
+        Mockito.when(conf.get(Mockito.anyString(), Mockito.anyString()))
+            .thenAnswer(invocation -> invocation.getArgument(1));
+        spark = Mockito.mock(SparkSession.class);
+        Mockito.when(spark.conf()).thenReturn(conf);
+        table = Mockito.mock(Table.class);
+        Mockito.when(table.name()).thenReturn("cat.db.tbl");
     }
 
     @Test
     public void splitSizeNone() {
         SparkReadConf readConf = new SparkReadConf(spark, table, ImmutableMap.of());
+        Assert.assertEquals(TableProperties.SPLIT_SIZE_DEFAULT, readConf.splitSize());
         Assert.assertEquals(null, readConf.splitSizeOption());
+    }
+
+    @Test
+    public void splitSizeFromTableProp() {
+        long splitSizeTableProp = 7654;
+        Mockito.when(table.properties())
+            .thenReturn(ImmutableMap.of(TableProperties.SPLIT_SIZE, String.valueOf(splitSizeTableProp)));
+
+        SparkReadConf readConf = new SparkReadConf(spark, table, ImmutableMap.of());
+        Assert.assertEquals(splitSizeTableProp, readConf.splitSize());
+        Assert.assertEquals(null, readConf.splitSizeOption());
+    }
+
+    @Test
+    public void splitSizeFromOption() {
+        long splitSizeOption = 12345;
+        Map<String, String> options = ImmutableMap.of(SparkReadOptions.SPLIT_SIZE, Long.toString(splitSizeOption));
+
+        SparkReadConf readConf = new SparkReadConf(spark, table, options);
+        Assert.assertEquals(splitSizeOption, readConf.splitSize());
+        Assert.assertEquals(splitSizeOption, readConf.splitSizeOption().longValue());
+    }
+
+    @Test
+    public void splitSizeFromConf() {
+        long splitSizeConf = 67890000;
+        Mockito.when(spark.conf().get("spark.netflix.db.tbl.target-size", null))
+            .thenReturn(String.valueOf(splitSizeConf));
+
+        SparkReadConf readConf = new SparkReadConf(spark, table, ImmutableMap.of());
+        Assert.assertEquals(splitSizeConf, readConf.splitSize());
+        Assert.assertEquals(splitSizeConf, readConf.splitSizeOption().longValue());
+    }
+
+    @Test
+    public void splitSizeFromBothOptionAndConf() {
+        long splitSizeOption = 12345;
+        Map<String, String> options = ImmutableMap.of(SparkReadOptions.SPLIT_SIZE, Long.toString(splitSizeOption));
+
+        long splitSizeConf = 67890000;
+        Mockito.when(spark.conf().get("spark.netflix.db.tbl.target-size", null))
+            .thenReturn(String.valueOf(splitSizeConf));
+
+        SparkReadConf readConf = new SparkReadConf(spark, table, options);
+        Assert.assertEquals("Read option overrides Spark config", splitSizeOption, readConf.splitSize());
+        Assert.assertEquals("Read option overrides Spark config",
+            splitSizeOption, readConf.splitSizeOption().longValue());
+    }
+
+    @Test
+    public void splitSizeFromBothOptionAndTableProp() {
+        long splitSizeOption = 12345;
+        Map<String, String> options = ImmutableMap.of(SparkReadOptions.SPLIT_SIZE, Long.toString(splitSizeOption));
+
+        long splitSizeTableProp = 7654;
+        Mockito.when(table.properties())
+            .thenReturn(ImmutableMap.of(TableProperties.SPLIT_SIZE, String.valueOf(splitSizeTableProp)));
+
+        SparkReadConf readConf = new SparkReadConf(spark, table, options);
+        Assert.assertEquals("Read option overrides table property", splitSizeOption, readConf.splitSize());
+        Assert.assertEquals("Read option overrides table property",
+            splitSizeOption, readConf.splitSizeOption().longValue());
+    }
+
+    @Test
+    public void splitSizeFromBothConfAndTableProp() {
+        long splitSizeConf = 67890000;
+        Mockito.when(spark.conf().get("spark.netflix.db.tbl.target-size", null))
+            .thenReturn(String.valueOf(splitSizeConf));
+
+        long splitSizeTableProp = 7654;
+        Mockito.when(table.properties())
+            .thenReturn(ImmutableMap.of(TableProperties.SPLIT_SIZE, String.valueOf(splitSizeTableProp)));
+
+        SparkReadConf readConf = new SparkReadConf(spark, table, ImmutableMap.of());
+        Assert.assertEquals("Spark config overrides table property", splitSizeConf, readConf.splitSize());
+        Assert.assertEquals("Spark config overrides table property",
+            splitSizeConf, readConf.splitSizeOption().longValue());
+    }
+
+    @Test
+    public void splitSizeFromAll() {
+        long splitSizeOption = 12345;
+        Map<String, String> options = ImmutableMap.of(SparkReadOptions.SPLIT_SIZE, Long.toString(splitSizeOption));
+
+        long splitSizeConf = 67890000;
+        Mockito.when(spark.conf().get("spark.netflix.db.tbl.target-size", null))
+            .thenReturn(String.valueOf(splitSizeConf));
+
+        long splitSizeTableProp = 7654;
+        Mockito.when(table.properties())
+            .thenReturn(ImmutableMap.of(TableProperties.SPLIT_SIZE, String.valueOf(splitSizeTableProp)));
+
+        SparkReadConf readConf = new SparkReadConf(spark, table, options);
+        Assert.assertEquals("Read option overrides all others", splitSizeOption, readConf.splitSize());
+        Assert.assertEquals("Read option overrides all others",
+            splitSizeOption, readConf.splitSizeOption().longValue());
     }
 }

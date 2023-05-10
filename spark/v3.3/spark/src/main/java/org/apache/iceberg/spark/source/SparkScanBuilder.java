@@ -644,6 +644,7 @@ public class SparkScanBuilder
 
     Long splitSize = readConf.splitSizeOption();
     if (splitSize != null) {
+      LOG.info("Override read split size for table {} with {}", table.name(), splitSize);
       configuredScan = configuredScan.option(TableProperties.SPLIT_SIZE, String.valueOf(splitSize));
     }
 
