@@ -34,6 +34,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.distributions.Distribution;
 import org.apache.spark.sql.connector.distributions.Distributions;
@@ -62,6 +63,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   private final LogicalWriteInfo writeInfo;
   private final StructType dsSchema;
   private final String overwriteMode;
+  private final boolean behaviorCompatibility;
   private final String rewrittenFileSetId;
   private final boolean handleTimestampWithoutZone;
   private final boolean useTableDistributionAndOrdering;
@@ -76,6 +78,8 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   SparkWriteBuilder(SparkSession spark, Table table, String branch, LogicalWriteInfo info) {
     this.spark = spark;
     this.table = table;
+    this.behaviorCompatibility = PropertyUtil.propertyAsBoolean(
+        table.properties(), "spark.behavior.compatibility", false);
     this.writeConf = new SparkWriteConf(spark, table, branch, info.options());
     this.writeInfo = info;
     this.dsSchema = info.schema();
@@ -135,6 +139,10 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     Preconditions.checkArgument(
         handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
         SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
+
+    if (!overwriteByFilter && !overwriteFiles && behaviorCompatibility) {
+      overwriteDynamicPartitions();
+    }
 
     Schema writeSchema = validateOrMergeWriteSchema(table, dsSchema, writeConf);
     SparkUtil.validatePartitionTransforms(table.spec());
