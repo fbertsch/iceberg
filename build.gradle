@@ -821,7 +821,9 @@ project(':iceberg-pig') {
 project(':iceberg-nessie') {
   if (JavaVersion.current().isJava11Compatible()) {
     test {
-      useJUnitPlatform()
+      useJUnitPlatform {
+        excludeEngines 'nessie-multi-env'
+      }
     }
     compileTestJava {
       sourceCompatibility = "11"
