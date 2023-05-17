@@ -396,7 +396,19 @@ abstract class BaseScan implements Scan, Batch, SupportsReportStatistics {
         (StructType) SparkSchemaUtil.convert(table.spec().partitionType()),
         JavaConverters.asScalaBufferConverter(paths).asScala());
 
-    return InMemoryFileIndex.create(spark, new Path(table.location()), sparkPartitioning);
+    return new InMemoryFileIndex(
+        spark,
+        ScalaUtil.asScala(
+            ScalaUtil.asJava(
+                sparkPartitioning.partitions()
+            ).stream().map(PartitionPath::path).collect(Collectors.toList())
+        ),
+        ScalaUtil.asScala(Collections.emptyMap()),
+        Option.apply(sparkPartitioning.partitionColumns()),
+        FileStatusCache.getOrCreate(spark),
+        Option.apply(sparkPartitioning),
+        Option.empty()
+    );
   }
 
   static InternalRow partitionTuple(org.apache.iceberg.PartitionSpec spec, PartitionDto part) {
