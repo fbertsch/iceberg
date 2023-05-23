@@ -25,6 +25,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import org.apache.iceberg.events.CreateMADSnapshotEvent;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -170,6 +172,9 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   @Override
   public Object updateEvent() {
     long snapshotId = snapshotId();
+    if (stageForMAD && madEventDetails != null) {
+      return new CreateMADSnapshotEvent(madEventDetails, snapshotId(), ops.current().snapshot(snapshotId).summary());
+    }
     Snapshot snapshot = ops.current().snapshot(snapshotId);
     long sequenceNumber = snapshot.sequenceNumber();
     return new CreateSnapshotEvent(

@@ -32,6 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import org.apache.iceberg.events.CreateMADSnapshotEvent;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -866,6 +868,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   @Override
   public Object updateEvent() {
     long snapshotId = snapshotId();
+    if (stageForMAD) {
+      return new CreateMADSnapshotEvent(madEventDetails, snapshotId(), ops.current().snapshot(snapshotId).summary());
+    }
     Snapshot justSaved = ops.refresh().snapshot(snapshotId);
     long sequenceNumber = TableMetadata.INVALID_SEQUENCE_NUMBER;
     Map<String, String> summary;

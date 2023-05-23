@@ -120,6 +120,7 @@ dependencies {
     exclude group: 'org.apache.orc'
     exclude group: 'junit'
     exclude group: 'org.junit'
+    exclude group: 'com.netflix.ksgateway'
   }
 }
 
@@ -171,6 +172,7 @@ shadowJar {
 
   // Relocate nflxe2etokens dependencies
   relocate 'com.netflix.nflxe2etokens',"${relocationPrefix}.com.netflix.nflxe2etokens"
+  relocate 'com.netflix.ksgateway', "${relocationPrefix}.com.netflix.ksgateway"
 
   archiveClassifier = null
 }

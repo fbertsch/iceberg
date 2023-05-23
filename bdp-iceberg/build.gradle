@@ -53,6 +53,7 @@ dependencies {
     exclude group: 'org.apache.spark'
     exclude group: 'org.apache.orc'
     exclude group: 'org.apache.hadoop'
+    exclude group: 'com.netflix.ksgateway'
   }
 
   shadow(project(':bdp-view')) {
@@ -106,6 +107,7 @@ shadowJar {
   // Metacat needs com.fasterxml relocated, which is already done above
   relocate 'com.netflix.metacat', "${relocationPrefix}.com.netflix.metacat"
   relocate 'com.netflix.nflxe2etokens',"${relocationPrefix}.com.netflix.nflxe2etokens"
+  relocate 'com.netflix.ksgateway', "${relocationPrefix}.com.netflix.ksgateway"
 
   archiveClassifier.set('')
 }

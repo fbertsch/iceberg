@@ -58,6 +58,7 @@ org.awaitility:awaitility = 4.2.0
 <!-- com.netflix.bdp:bdp-gandalf = 0.1.25 -->
 com.netflix.dp.s3authsign:s3-auth-sign-client = 0.1.0-rc.18 <!-- FIXME : Might be deprecated-->
 <!-- com.netflix.metacat:metacat-netflix-client = 1.3.106 -->
+<!-- com.netflix.ksgateway:ksgateway-producer = 0.0.4 -->
 <!-- com.netflix.nflxe2etokens:nflx-e2etokens-common = 0.13.0 -->
 <!-- com.netflix.s3authsigncde:* = 1.6.0 -->
 <!-- netflix:dse-metric = 1.8.0 -->

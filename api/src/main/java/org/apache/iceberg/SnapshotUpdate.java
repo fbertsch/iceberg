@@ -53,6 +53,13 @@ public interface SnapshotUpdate<ThisT> extends PendingUpdate<Snapshot> {
   ThisT stageOnly();
 
   /**
+   * Called to stage a snapshot in table metadata for Modify-Audit-Discard, but not update the current snapshot id.
+   *
+   * @return this for method chaining
+   */
+  ThisT stageForMAD(MadEventDetails madEventDetails);
+
+  /**
    * Use a particular executor to scan manifests. The default worker pool will be used by default.
    *
    * @param executorService the provided executor

@@ -1,5 +1,6 @@
 package com.netflix.iceberg.metacat;
 
+import com.netflix.iceberg.CreateMADSnapshotListener;
 import com.netflix.iceberg.KSGatewayListener;
 import com.netflix.metacat.client.Client;
 import com.netflix.metacat.common.exception.MetacatAlreadyExistsException;
@@ -31,6 +32,7 @@ public class MetacatIcebergCatalog extends BaseMetastoreCatalog {
         if (!MetacatIcebergCatalog.initialized) {
           MetacatIcebergCatalog.initialized = true;
           KSGatewayListener.initialize(appName, appId, conf);
+          CreateMADSnapshotListener.initialize(conf);
         }
       }
     }

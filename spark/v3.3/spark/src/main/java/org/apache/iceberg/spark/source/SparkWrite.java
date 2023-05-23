@@ -26,11 +26,13 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IsolationLevel;
+import org.apache.iceberg.MadEventDetails;
 import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
@@ -56,6 +58,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
+import org.apache.iceberg.spark.NetflixConf;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.spark.TaskContext;
 import org.apache.spark.TaskContext$;
@@ -93,6 +96,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final String wapId;
   private final int outputSpecId;
   private final String branch;
+  private final String madId;
   private final long targetFileSize;
   private final Schema writeSchema;
   private final StructType dsSchema;
@@ -122,6 +126,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.wapEnabled = writeConf.wapEnabled();
     this.wapId = writeConf.wapId();
     this.branch = writeConf.branch();
+    this.madId = writeConf.netflixConf().madId();
     this.targetFileSize = writeConf.targetDataFileSize();
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
@@ -209,6 +214,21 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
     if (branch != null) {
       operation.toBranch(branch);
+    }
+
+    if (madId != null) {
+      operation.set(SnapshotSummary.STAGED_MAD_ID_PROP, madId);
+      NetflixConf netflixConf = writeConf.netflixConf();
+      MadEventDetails madEventDetails = new MadEventDetails(
+          table.name(),
+          netflixConf.madId(),
+          netflixConf.schedulerWorkflowId(),
+          netflixConf.schedulerStepId(),
+          netflixConf.schedulerName(),
+          netflixConf.schedulerCluster(),
+          netflixConf.genieId(),
+          netflixConf.netflixSparkVersion());
+      operation.stageForMAD(madEventDetails);
     }
 
     try {

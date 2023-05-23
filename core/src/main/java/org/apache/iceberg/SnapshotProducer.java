@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.iceberg.events.CreateSnapshotEvent;
+import org.apache.iceberg.events.CreateMADSnapshotEvent;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -68,14 +69,6 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.TableProperties.CLEANUP_METADATA_ON_COMMIT_FAILURE;
 import static org.apache.iceberg.TableProperties.CLEANUP_METADATA_ON_COMMIT_FAILURE_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 @SuppressWarnings("UnnecessaryAnonymousClass")
 abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
@@ -111,6 +104,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private String targetBranch = SnapshotRef.MAIN_BRANCH;
   private CommitMetrics commitMetrics;
 
+  // MAD related state
+  boolean stageForMAD = false;
+  MadEventDetails madEventDetails;
+
   protected SnapshotProducer(TableOperations ops) {
     this.ops = ops;
     this.strictCleanup = ops.requireStrictCleanup();
@@ -134,6 +131,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   @Override
   public ThisT stageOnly() {
     this.stageOnly = true;
+    return self();
+  }
+
+  @Override
+  public ThisT stageForMAD(MadEventDetails madEventDetails) {
+    Preconditions.checkNotNull(madEventDetails);
+    this.stageForMAD = true;
+    this.madEventDetails = madEventDetails;
     return self();
   }
 
@@ -390,7 +395,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                 if (base.snapshot(newSnapshot.snapshotId()) != null) {
                   // this is a rollback operation
                   update.setBranchSnapshot(newSnapshot.snapshotId(), targetBranch);
-                } else if (stageOnly) {
+                } else if (stageOnly || stageForMAD) {
                   update.addSnapshot(newSnapshot);
                 } else {
                   update.setBranchSnapshot(newSnapshot, targetBranch);
@@ -454,6 +459,15 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       notifyListeners();
     } catch (Throwable e) {
       LOG.warn("Failed to notify event listeners", e);
+    }
+  }
+
+  @Override
+  public Object updateEvent() {
+    if (stageForMAD) {
+      return new CreateMADSnapshotEvent(madEventDetails, snapshotId(), ops.current().snapshot(snapshotId()).summary());
+    } else {
+      return null;
     }
   }
 

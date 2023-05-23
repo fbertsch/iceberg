@@ -63,6 +63,7 @@ public class SparkWriteConf {
   private final RuntimeConfig sessionConf;
   private final Map<String, String> writeOptions;
   private final SparkConfParser confParser;
+  private final NetflixConf netflixConf;
 
   public SparkWriteConf(SparkSession spark, Table table, Map<String, String> writeOptions) {
     this(spark, table, null, writeOptions);
@@ -75,6 +76,7 @@ public class SparkWriteConf {
     this.sessionConf = spark.conf();
     this.writeOptions = writeOptions;
     this.confParser = new SparkConfParser(spark, table, writeOptions);
+    this.netflixConf = new NetflixConf(sessionConf);
   }
 
   public boolean checkNullability() {
@@ -355,25 +357,29 @@ public class SparkWriteConf {
     if (wapEnabled()) {
       String wapId = wapId();
       String wapBranch =
-          confParser.stringConf().sessionConf(SparkSQLProperties.WAP_BRANCH).parseOptional();
+              confParser.stringConf().sessionConf(SparkSQLProperties.WAP_BRANCH).parseOptional();
 
       ValidationException.check(
-          wapId == null || wapBranch == null,
-          "Cannot set both WAP ID and branch, but got ID [%s] and branch [%s]",
-          wapId,
-          wapBranch);
+              wapId == null || wapBranch == null,
+              "Cannot set both WAP ID and branch, but got ID [%s] and branch [%s]",
+              wapId,
+              wapBranch);
 
       if (wapBranch != null) {
         ValidationException.check(
-            branch == null,
-            "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [%s]",
-            branch,
-            wapBranch);
+                branch == null,
+                "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [%s]",
+                branch,
+                wapBranch);
 
         return wapBranch;
       }
     }
 
     return branch;
+  }
+
+  public NetflixConf netflixConf() {
+    return netflixConf;
   }
 }

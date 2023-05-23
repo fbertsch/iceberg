@@ -432,7 +432,8 @@ public class TestFastAppend extends TableTestBase {
   }
 
   @Test
-  public void testDefaultPartitionSummaries() {
+  public void testAbsentPartitionSummaries() {
+    table.updateProperties().set(TableProperties.WRITE_PARTITION_SUMMARY_LIMIT, "0").commit();
     table.newFastAppend().appendFile(FILE_A).commit();
 
     Set<String> partitionSummaryKeys =
