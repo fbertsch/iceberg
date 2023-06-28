@@ -68,7 +68,7 @@ dependencies {
   }
   testImplementation project(path: ':iceberg-hive-metastore')
   testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-  implementation(libs.mockito.junit.jupiter)
-  implementation(libs.mockito.core)
-  implementation(libs.mockito.inline)
+  testImplementation(libs.mockito.junit.jupiter)
+  testImplementation(libs.mockito.core)
+  testImplementation(libs.mockito.inline)
 }

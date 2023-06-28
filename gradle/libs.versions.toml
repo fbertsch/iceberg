@@ -74,7 +74,7 @@ tez08 = { strictly = "0.8.4"}
 aws-java-sdk = "1.11.749"
 s3authsigncde = "1.6.0"
 metrics = "3.0.1"
-metacat = "1.3.178"
+metacat = "1.3.183"
 dse-metric = "1.8.0"
 bdp = "0.1.25"
 bdp-lineage-logging = "0.2.3"

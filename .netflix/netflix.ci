@@ -37,11 +37,11 @@ gradle_tasks="clean"
 gradle_options+=" -DhiveVersions="
 
 if [[ "$ROCKET_BRANCH" =~ ^netflix/[0-9]+\.[0-9]+\.x$ ]]; then
-  gradle_options+=" -Prelease.scope=patch"
+  gradle_options+=" -Prelease.scope=patch$candidate_options"
   gradle_tasks+=" candidate"
 
 elif [[ "${ROCKET_TAG_TYPE}" == "CANDIDATE" ]]; then
-  echo "RC tag notexpected. Fix Jenkins source code branch pattern." >&2
+  echo "RC tag not expected. Fix Jenkins source code branch pattern." >&2
   false
 
 elif [[ "${ROCKET_TAG_TYPE}" == "FINAL" ]]; then

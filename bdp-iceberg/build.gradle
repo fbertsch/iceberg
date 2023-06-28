@@ -69,6 +69,7 @@ jar {
 }
 
 shadowJar {
+  relocationPrefix project.property('relocationPrefix')
   configurations = [project.configurations.shadow]
 
   zip64 true

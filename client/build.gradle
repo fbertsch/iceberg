@@ -3,9 +3,12 @@ apply plugin: 'com.github.johnrengelman.shadow'
 configurations {
   shadow
   compileOnly.extendsFrom shadow
+  integrationCompileOnly.extendsFrom testCompileOnly
+  integrationImplementation.extendsFrom testImplementation
 }
 
 shadowJar {
+  relocationPrefix project.property('relocationPrefix')
   configurations = [project.configurations.shadow]
   from(project.sourceSets.main.output)
 }
@@ -39,6 +42,7 @@ dependencies {
     exclude group: 'org.junit'
   }
 
+  shadow(libs.ksgateway.producer)
   shadow(libs.metrics.core)
   shadow(libs.slf4j.jcl.over.slf4j)
 
@@ -122,6 +126,13 @@ dependencies {
     exclude group: 'org.junit'
     exclude group: 'com.netflix.ksgateway'
   }
+
+  integrationCompileOnly(project(':iceberg-metacat'))
+  integrationCompileOnly(project(':iceberg-parquet'))
+  integrationCompileOnly("org.apache.hadoop:hadoop-client")
+  integrationCompileOnly("org.apache.hadoop:hadoop-mapreduce-client-core")
+  integrationCompileOnly("org.apache.parquet:parquet-hadoop-bundle")
+  integrationImplementation 'org.junit.jupiter:junit-jupiter-engine'
 }
 
 jar {
@@ -129,12 +140,14 @@ jar {
 }
 
 shadowJar {
+  relocationPrefix project.property('relocationPrefix')
 
   zip64 true
 
   // this contains a fake Level class that is only used for Level.INFO
   relocate 'org.apache.log4j', "${relocationPrefix}.org.apache.log4j"
   relocate 'com.google.common', "${relocationPrefix}.com.google.common"
+  relocate 'com.google.protobuf', "${relocationPrefix}.com.google.protobuf"
 
   // Important: jbrotli cannot be relocated because it has native methods
 
@@ -176,3 +189,24 @@ shadowJar {
 
   archiveClassifier = null
 }
+
+sourceSets {
+  integration {
+    java.srcDir "$projectDir/src/integration/java"
+    resources.srcDir "$projectDir/src/integration/resources"
+    compileClasspath += sourceSets.main.output
+    runtimeClasspath += sourceSets.main.output
+  }
+}
+
+task integrationTest(type: Test) {
+  description = "Test client shadow jar"
+  group = "verification"
+  useJUnitPlatform()
+  testClassesDirs = sourceSets.integration.output.classesDirs
+  classpath = sourceSets.integration.runtimeClasspath + files(shadowJar.archiveFile.get().asFile.path)
+  inputs.file(shadowJar.archiveFile.get().asFile.path)
+}
+
+integrationTest.dependsOn shadowJar
+check.dependsOn integrationTest

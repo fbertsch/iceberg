@@ -17,4 +17,4 @@ notifications:
       conditions:
         - success
 publish:
-  junit: "*/build/*est-results/*.xml"
+  junit: "*/build/*est-results/**/*.xml"
