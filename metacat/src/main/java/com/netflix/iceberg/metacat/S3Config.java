@@ -14,12 +14,15 @@
 
 package com.netflix.iceberg.metacat;
 
+import java.io.UncheckedIOException;
+import java.time.Duration;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.core.retry.backoff.FullJitterBackoffStrategy;
-
-import java.time.Duration;
+import software.amazon.awssdk.core.retry.conditions.OrRetryCondition;
+import software.amazon.awssdk.core.retry.conditions.RetryCondition;
+import software.amazon.awssdk.core.retry.conditions.RetryOnExceptionsCondition;
 
 public class S3Config {
 
@@ -33,6 +36,9 @@ public class S3Config {
 
   private static RetryPolicy getRetryPolicy() {
     return RetryPolicy.builder()
+        .retryCondition(OrRetryCondition.create(
+            RetryCondition.defaultRetryCondition(), RetryOnExceptionsCondition.create(UncheckedIOException.class))
+        )
         .backoffStrategy(FullJitterBackoffStrategy.builder()
             .baseDelay(Duration.ofSeconds(1))
             .maxBackoffTime(Duration.ofMinutes(3))
