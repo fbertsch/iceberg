@@ -61,4 +61,5 @@ com.netflix.dp.s3authsign:s3-auth-sign-client = 0.1.0-rc.18 <!-- FIXME : Might b
 <!-- com.netflix.ksgateway:ksgateway-producer = 0.0.4 -->
 <!-- com.netflix.nflxe2etokens:nflx-e2etokens-common = 0.13.0 -->
 <!-- com.netflix.s3authsigncde:* = 1.6.0 -->
+<!-- com.netflix.spectator:* = 1.6.9 -->
 <!-- netflix:dse-metric = 1.8.0 -->

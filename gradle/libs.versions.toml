@@ -80,6 +80,7 @@ bdp = "0.1.25"
 bdp-lineage-logging = "0.2.3"
 bdp-s3fs = "0.1.31"
 ksgateway = "0.0.4"
+netflix-spectator = "1.6.9"
 
 [libraries]
 activation = { module = "javax.activation:activation", version.ref = "activation" }
@@ -176,6 +177,7 @@ metrics-core = { module = "com.codahale.metrics:metrics-core", version.ref = "me
 metacat-netflix-client = { module = "com.netflix.metacat:metacat-netflix-client", version.ref = "metacat" }
 dse-metric = { module = "netflix:dse-metric", version.ref = "dse-metric" }
 ksgateway-producer = { module = "com.netflix.ksgateway:ksgateway-producer", version.ref = "ksgateway" }
+netflix-spectator-ext-ipc = { module = "com.netflix.spectator:spectator-ext-ipc", version.ref = "netflix-spectator"}
 
 
 # test libraries

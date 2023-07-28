@@ -16,6 +16,8 @@ import com.netflix.metacat.common.exception.MetacatPreconditionFailedException;
 import com.netflix.metacat.common.exception.MetacatUserMetadataException;
 import com.netflix.metacat.shaded.com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.netflix.metacat.shaded.com.fasterxml.jackson.databind.node.ObjectNode;
+import com.netflix.spectator.api.Spectator;
+import com.netflix.spectator.ipc.IpcLogger;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -46,7 +48,7 @@ class MetacatViewClientOps extends BaseMetastoreViewOperations {
             !exc.getClass().getCanonicalName().contains("Unrecoverable");
 
     private Configuration conf;
-    private final Client client;
+    private final MetacatApi metacatApi;
     private final String catalog;
     private final String dbName;
     private final String viewName;
@@ -56,7 +58,10 @@ class MetacatViewClientOps extends BaseMetastoreViewOperations {
 
     MetacatViewClientOps(Configuration conf, Client client, String catalog, String dbName, String viewName) {
         this.conf = conf;
-        this.client = client;
+        this.metacatApi = MetacatApi.builder()
+                .withMetacatV1(client.getApi())
+                .withIpcLogger(new IpcLogger(Spectator.globalRegistry(), LOG))
+                .build();
         this.catalog = catalog;
         this.dbName = dbName;
         this.viewName = viewName;
@@ -72,7 +77,8 @@ class MetacatViewClientOps extends BaseMetastoreViewOperations {
     public synchronized ViewVersionMetadata refresh() {
         String metadataLocation = null;
         try {
-            TableDto tableInfo = MetacatUtil.getIcebergTable(client, catalog, dbName, viewName);
+            TableDto tableInfo = warnLatency("load table %s.%s.%s from Metacat", catalog, dbName, viewName)
+                    .call(() -> MetacatUtil.getIcebergTable(metacatApi, catalog, dbName, viewName));
 
             Map<String, String> tableProperties = tableInfo.getMetadata();
 
@@ -149,9 +155,9 @@ class MetacatViewClientOps extends BaseMetastoreViewOperations {
             newTableInfo.setView(viewDto);
 
             if (base == null) {
-                client.getApi().createTable(catalog, dbName, viewName, newTableInfo);
+                metacatApi.createTable(catalog, dbName, viewName, newTableInfo);
             } else {
-                client.getApi().updateTable(catalog, dbName, viewName, newTableInfo);
+                metacatApi.updateTable(catalog, dbName, viewName, newTableInfo);
             }
             threw = false;
 
@@ -243,5 +249,13 @@ class MetacatViewClientOps extends BaseMetastoreViewOperations {
             default:
                 throw new UnsupportedOperationException(type + " is not supported");
         }
+    }
+
+    private WarnLatency warnLatency(String format, Object ...args) {
+        return WarnLatency.builder()
+                .withThreshold(MetacatUtil.latencyThresholdMs(conf))
+                .withLogger(LOG)
+                .withDescription(format, args)
+                .build();
     }
 }

@@ -25,6 +25,8 @@ import com.netflix.metacat.common.dto.TableDto;
 import com.netflix.metacat.common.exception.MetacatNotFoundException;
 import com.netflix.metacat.shaded.feign.Request;
 import com.netflix.metacat.shaded.feign.Retryer;
+import com.netflix.spectator.api.Id;
+import com.netflix.spectator.api.Registry;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
@@ -41,8 +43,8 @@ public class MetacatUtil {
    * This call explicitly tells metacat not to load metadata from S3 to reduce load for metacat, so some fields like
    * schema or partition spec will be empty in response.
    */
-  public static TableDto getIcebergTable(Client client, String catalog, String database, String table) {
-    return client.getApi().getTable(catalog, database, table,
+  public static TableDto getIcebergTable(MetacatApi metacatApi, String catalog, String database, String table) {
+    return metacatApi.getTable(catalog, database, table,
             true /* send table fields, partition keys */,
             true /* send user definition metadata (including ttl settings) */,
             false /* do not send user data metadata (?) */,
@@ -153,5 +155,9 @@ public class MetacatUtil {
         .withRetryer(getRetryer(conf))
         .withRequestOptions(getRequestOptions(conf))
         .build();
+  }
+
+  public static int latencyThresholdMs(Configuration conf) {
+    return conf.getInt("netflix.metacat.latencyThresholdMs", 1000);
   }
 }

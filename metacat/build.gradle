@@ -45,6 +45,7 @@ dependencies {
   implementation 'software.amazon.awssdk:apache-client'
 
   compileOnly libs.avro.avro
+  implementation libs.netflix.spectator.ext.ipc
   compileOnly("org.apache.spark:spark-avro_${scalaVersion}:${sparkVersion}") {
     exclude group: 'org.apache.avro', module: 'avro'
   }

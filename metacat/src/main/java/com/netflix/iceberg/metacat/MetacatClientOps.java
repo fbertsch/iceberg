@@ -20,6 +20,8 @@ import com.netflix.metacat.shaded.com.fasterxml.jackson.databind.node.ObjectNode
 import com.netflix.nflxe2etokens.validation.common.E2eTokenConstants;
 import com.netflix.s3authsign.common.rest.RemoteSigningAccessDeniedException;
 import com.netflix.s3authsign.common.rest.S3StsAccessDeniedException;
+import com.netflix.spectator.api.Spectator;
+import com.netflix.spectator.ipc.IpcLogger;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
@@ -79,7 +81,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
       !(exc instanceof NullPointerException);
 
   private final Configuration conf;
-  private final Client client;
+  private final MetacatApi metacatApi;
   private final TableIdentifier identifier;
   private final String catalog;
   private final String database;
@@ -94,7 +96,10 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
 
   MetacatClientOps(Configuration conf, Client client, TableIdentifier identifier) {
     this.conf = conf;
-    this.client = client;
+    this.metacatApi = MetacatApi.builder()
+        .withMetacatV1(client.getApi())
+        .withIpcLogger(new IpcLogger(Spectator.globalRegistry(), LOG))
+        .build();
     this.identifier = identifier;
     this.catalog = identifier.namespace().level(0);
     this.database = identifier.namespace().level(1);
@@ -123,7 +128,8 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
   public synchronized void doRefresh() {
     String metadataLocation = null;
     try {
-      TableDto tableInfo = MetacatUtil.getIcebergTable(client, catalog, database, table);
+      TableDto tableInfo = warnLatency("load table %s.%s.%s from Metacat", catalog, database, table)
+          .call(() -> MetacatUtil.getIcebergTable(metacatApi, catalog, database, table));
       Map<String, String> tableProperties = tableInfo.getMetadata();
       String tableType = tableProperties.get(TABLE_TYPE_PROP);
       this.secure = DefinitionMetadata.isSecure(tableInfo.getDefinitionMetadata());
@@ -153,7 +159,9 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
         }
       };
 
-      refreshFromMetadataLocation(metadataLocation, RETRY_IF, 20, addReservedProperties);
+      String metadataLocationLocal = metadataLocation;
+      warnLatency("refresh metadata from %s", metadataLocationLocal)
+          .run(() -> refreshFromMetadataLocation(metadataLocationLocal, RETRY_IF, 20, addReservedProperties));
     } catch (MetacatNotFoundException e) {
       // if metadata has been loaded for this table and is now gone, throw an exception
       // otherwise, assume the table doesn't exist yet.
@@ -162,7 +170,9 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
             "No such Metacat table: %s.%s.%s", catalog, database, table));
       }
 
-      refreshFromMetadataLocation(metadataLocation, RETRY_IF, 20);
+      String metadataLocationLocal = metadataLocation;
+      warnLatency("refresh metadata from %s after Metacat not found", metadataLocationLocal)
+          .run(() -> refreshFromMetadataLocation(metadataLocationLocal, RETRY_IF, 20));
     }
   }
 
@@ -254,7 +264,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
                 + " trying to commit location = " + newMetadataLocation
             );
           }
-          client.getApi().updateTable(catalog, database, table, newTableInfo);
+          metacatApi.updateTable(catalog, database, table, newTableInfo);
         } catch (MetacatPreconditionFailedException e) {
           throw e;
         } catch (Throwable exception) {
@@ -268,7 +278,8 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
             String backupTableName = table.substring(0, table.length() - 8) + "_hive";
 
             try {
-              TableDto table = MetacatUtil.getIcebergTable(client, catalog, database, backupTableName);
+              TableDto table = warnLatency("load table %s.%s.%s from Metacat", catalog, database, backupTableName)
+                  .call(() -> MetacatUtil.getIcebergTable(metacatApi, catalog, database, backupTableName));
               // copy all of the definition metadata, and merge with new values
               ObjectNode dmFromBackupTable = table.getDefinitionMetadata();
               ObjectNode dmMerged = DefinitionMetadata.overwriteMerge(dmFromBackupTable, definitionMetadata);
@@ -292,7 +303,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
         // set the table owner from the current user
         newTableInfo.getSerde().setOwner(MetacatUtil.getUser(metadata));
         try {
-          client.getApi().createTable(catalog, database, table, newTableInfo);
+          metacatApi.createTable(catalog, database, table, newTableInfo);
         } catch (MetacatAlreadyExistsException e) {
           throw e;
         } catch (Throwable exception) {
@@ -509,5 +520,13 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
     }
 
     return Optional.empty();
+  }
+
+  private WarnLatency warnLatency(String format, Object ...args) {
+    return WarnLatency.builder()
+        .withThreshold(MetacatUtil.latencyThresholdMs(conf))
+        .withLogger(LOG)
+        .withDescription(format, args)
+        .build();
   }
 }

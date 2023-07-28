@@ -79,6 +79,10 @@ shadowJar {
 
   mergeServiceFiles()
 
+  dependencies {
+    exclude(dependency('com.netflix.spectator:spectator-api'))  // Provided by Spark
+  }
+
   // Relocate dependencies to avoid conflicts
   relocate 'com.google', "${relocationPrefix}.com.google"
   relocate 'com.fasterxml', "${relocationPrefix}.com.fasterxml"
