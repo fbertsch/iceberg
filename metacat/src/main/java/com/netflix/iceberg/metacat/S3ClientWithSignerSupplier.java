@@ -3,6 +3,7 @@ package com.netflix.iceberg.metacat;
 import com.netflix.iceberg.security.SecurityContext;
 import com.netflix.s3authsign.signer.NflxAuthS3SignerRest;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -30,7 +31,7 @@ public class S3ClientWithSignerSupplier extends S3ClientSupplier {
     ClientOverrideConfiguration conf = S3Config.getOverrideConfig(s3UserAgentProvider.getUserAgentString());
     conf = conf.toBuilder().putAdvancedOption(SIGNER, signer).build();
     return builder
-        .httpClient(UrlConnectionHttpClient.create())
+        .httpClient(ApacheHttpClient.create())
         .region(Region.of(region))
         .overrideConfiguration(conf).build();
   }

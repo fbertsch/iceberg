@@ -3,6 +3,7 @@ package com.netflix.iceberg.metacat;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -47,7 +48,7 @@ public class S3ClientWithRoleSupplier extends S3ClientSupplier {
     ClientOverrideConfiguration conf = S3Config.getOverrideConfig(s3UserAgentProvider.getUserAgentString());
     return builder
         .credentialsProvider(credentialsProvider)
-        .httpClient(UrlConnectionHttpClient.create())
+        .httpClient(ApacheHttpClient.create())
         .region(Region.of(region))
         .overrideConfiguration(conf)
         .build();
