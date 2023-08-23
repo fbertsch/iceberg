@@ -1,5 +1,14 @@
+apply plugin: 'scala'
+
+sourceSets {
+  main {
+    scala.srcDirs = ['src/main/scala', 'src/main/java']
+    java.srcDirs = []
+  }
+}
+
 ext {
-  sparkVersion = '3.3.100-unstable-22'
+  sparkVersion = '3.3.1'
   sparkMajorVersion = '3.3'
   scalaVersion = System.getProperty("scalaVersion") != null ?
           System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")

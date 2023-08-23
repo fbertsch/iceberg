@@ -97,7 +97,8 @@ class FileFormatScan extends BaseScan {
           spark, table.schema(),
           table.partitionSchema(),
           SparkTables.dataProjection(expectedSchema, table.partitionSchema()), // must exclude partition columns
-          JavaConverters.asScalaBufferConverter(rowFilters).asScala(), ScalaUtil.asScala(optionsBuilder.build()),
+          JavaConverters.asScalaBufferConverter(rowFilters).asScala().toSeq(),
+          ScalaUtil.asScala(optionsBuilder.build()),
           spark.sessionState().newHadoopConf());
       this.isColumnar = supportBatch;
     }

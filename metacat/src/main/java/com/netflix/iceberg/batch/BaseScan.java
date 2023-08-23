@@ -24,13 +24,7 @@ import com.netflix.metacat.common.dto.PartitionDto;
 import com.netflix.metacat.shaded.com.fasterxml.jackson.databind.JsonNode;
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.OptionalLong;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.fs.Path;
@@ -155,7 +149,10 @@ abstract class BaseScan implements Scan, Batch, SupportsReportStatistics {
     BinPacking.ListPacker<PartitionedFile> packer = new BinPacking.ListPacker<>(splitSize, lookback, true);
 
     // pass no filters because the index was built by passing filters to Metacat
-    List<PartitionDirectory> partitions = ScalaUtil.asJava(fileIndex.listFiles(ScalaUtil.nil(), ScalaUtil.nil()));
+    List<PartitionDirectory> partitions = ScalaUtil.asJava(fileIndex.listFiles(
+            ScalaUtil.asScala(new ArrayList<org.apache.spark.sql.catalyst.expressions.Expression>()).toList(),
+            ScalaUtil.asScala(new ArrayList<org.apache.spark.sql.catalyst.expressions.Expression>()).toList()
+    ));
 
     List<PartitionedFile> files = partitions.stream()
         .flatMap(part -> JavaConverters.seqAsJavaListConverter(part.files()).asJava().stream().map(
@@ -394,7 +391,7 @@ abstract class BaseScan implements Scan, Batch, SupportsReportStatistics {
 
     PartitionSpec sparkPartitioning = PartitionSpec.apply(
         (StructType) SparkSchemaUtil.convert(table.spec().partitionType()),
-        JavaConverters.asScalaBufferConverter(paths).asScala());
+        JavaConverters.asScalaBufferConverter(paths).asScala().toSeq());
 
     return new InMemoryFileIndex(
         spark,
@@ -402,7 +399,7 @@ abstract class BaseScan implements Scan, Batch, SupportsReportStatistics {
             ScalaUtil.asJava(
                 sparkPartitioning.partitions()
             ).stream().map(PartitionPath::path).collect(Collectors.toList())
-        ),
+        ).toSeq(),
         ScalaUtil.asScala(Collections.emptyMap()),
         Option.apply(sparkPartitioning.partitionColumns()),
         FileStatusCache.getOrCreate(spark),

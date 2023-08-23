@@ -17,6 +17,10 @@
  * under the License.
  */
 
+String scalaVersion = System.getProperty("scalaVersion") != null
+        ? System.getProperty("scalaVersion")
+        : System.getProperty("defaultScalaVersion")
+
 subprojects {
     configurations {
         all {
@@ -48,6 +52,41 @@ subprojects {
         archives javadocJar
         archives testJar
         testArtifacts testJar
+    }
+
+    // FIXME : Looks like we're excluding everything but spark, perhaps we
+    //  could whitelist projects containing the '-spark' string instead of blacklisting everything else
+    nebulaPublishing {
+        skipArtifactory = scalaVersion == '2.12' && [
+                'bdp-iceberg-client',
+                'bdp-iceberg',
+                'bdp-view',
+                'iceberg-common',
+                'iceberg-aliyun',
+                'iceberg-core',
+                'iceberg-bundled-guava',
+                'iceberg-aws',
+                'iceberg-api',
+                'iceberg-dell',
+                'iceberg-data',
+                'iceberg-metacat',
+                'iceberg-gcp',
+                'iceberg-arrow',
+                'iceberg-hive-metastore',
+                'iceberg-nessie',
+                'iceberg-pig',
+                'iceberg-parquet',
+                'iceberg-flink',
+                'iceberg-flink-1.16',
+                'iceberg-flink-runtime-1.16',
+                'iceberg-orc',
+                'iceberg-delta-lake',
+                'iceberg-snowflake',
+                'iceberg-azure',
+                'iceberg-azure-bundle',
+                'iceberg-gcp-bundle',
+                'iceberg-aws-bundle'
+        ].contains(project.name)
     }
 
     afterEvaluate {

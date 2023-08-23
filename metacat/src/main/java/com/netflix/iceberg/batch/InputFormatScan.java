@@ -280,7 +280,7 @@ public class InputFormatScan extends BaseScan {
 
       Iterator<Writable> iter = new RecordReaderValueIterator<>(openReader(file, info));
       scala.collection.Iterator<InternalRow> scalaIter = HadoopTableReader.fillObject(
-          ScalaUtil.asScala(iter), info.newDeserializer(config.tableProperties(), conf), attrs(config.dataSchema()),
+          ScalaUtil.asScala(iter).toIterator(), info.newDeserializer(config.tableProperties(), conf), attrs(config.dataSchema()),
           reusedRow, tableDeserializer);
 
       Iterator<InternalRow> dataIter = ScalaUtil.asJava(scalaIter);
@@ -293,15 +293,15 @@ public class InputFormatScan extends BaseScan {
       }
     }
 
-    private static Seq<Tuple2<Attribute, Object>> attrs(StructType struct) {
+    private static scala.collection.immutable.Seq<Tuple2<Attribute, Object>> attrs(StructType struct) {
       List<Tuple2<Attribute, Object>> attrs = Lists.newArrayList();
       StructField[] fields = struct.fields();
       for (int i = 0; i < fields.length; i += 1) {
         StructField field = fields[i];
         attrs.add(Tuple2.apply(new AttributeReference(
-            field.name(), field.dataType(), field.nullable(), field.metadata(), ExprId.apply(i), ScalaUtil.nil()), i));
+            field.name(), field.dataType(), field.nullable(), field.metadata(), ExprId.apply(i), ScalaUtil.<String>nil().toSeq()), i));
       }
-      return ScalaUtil.asScala(attrs);
+      return ScalaUtil.asScala(attrs).toList();
     }
   }
 

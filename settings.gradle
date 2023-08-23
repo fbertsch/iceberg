@@ -212,5 +212,5 @@ project(':client').name = 'bdp-iceberg-client'
 include ':bdp-iceberg'
 project(':bdp-iceberg').projectDir = file('bdp-iceberg')
 
-include ':bdp-iceberg-spark_2.12'
-project(':bdp-iceberg-spark_2.12').projectDir = file('bdp-iceberg-spark')
+include ":bdp-iceberg-spark_${scalaVersion}"
+project(":bdp-iceberg-spark_${scalaVersion}").projectDir = file('bdp-iceberg-spark')

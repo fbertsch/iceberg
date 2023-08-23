@@ -388,7 +388,11 @@ class HiveUtil {
   static Function<Object, Object>[] convertersFor(ObjectInspector[] fieldOIs, DataType[] dataTypes) {
     Preconditions.checkArgument(fieldOIs.length == dataTypes.length, "[BUG] Not the same number of fields and types");
     return IntStream.range(0, dataTypes.length).boxed()
-        .map(i -> HadoopTableReader.javaWrapper(fieldOIs[i], dataTypes[i]))
+        .map(i -> wrapper(fieldOIs[i], dataTypes[i]))
         .toArray(Function[]::new);
+  }
+
+  private static Function<Object, Object> wrapper(ObjectInspector fieldOI, DataType dataType) {
+    return (Object o) -> HadoopTableReader.wrap(o, fieldOI, dataType);
   }
 }

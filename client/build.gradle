@@ -116,7 +116,9 @@ dependencies {
     exclude group: 'org.tukaani'
     exclude group: 'com.thoughtworks.paranamer'
     exclude group: 'com.netflix.iceberg', module: 'iceberg-spark-3.3_2.12'
+    exclude group: 'com.netflix.iceberg', module: 'iceberg-spark-3.3_2.13'
     exclude group: 'org.apache.iceberg', module: 'iceberg-spark-3.3_2.12'
+    exclude group: 'org.apache.iceberg', module: 'iceberg-spark-3.3_2.13'
     // exclude transitive dependencies provided by the Spark distribution
     exclude group: 'org.slf4j'
     exclude group: 'org.codehaus.jackson'

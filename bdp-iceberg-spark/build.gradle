@@ -1,5 +1,7 @@
 apply plugin: 'com.github.johnrengelman.shadow'
 
+String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
+
 configurations {
   shadow
   compileOnly.extendsFrom shadow
@@ -20,10 +22,10 @@ configurations {
 }
 
 dependencies {
-  shadow(project(':iceberg-spark:iceberg-spark-3.3_2.12')) {
+  shadow(project(":iceberg-spark:iceberg-spark-3.3_${scalaVersion}")) {
     exclude group: 'com.netflix.bdp', module: 'metrics'
   }
-  shadow(project(':iceberg-spark:iceberg-spark-extensions-3.3_2.12')) {
+  shadow(project(":iceberg-spark:iceberg-spark-extensions-3.3_${scalaVersion}")) {
     exclude group: 'com.netflix.bdp', module: 'metrics'
   }
   shadow(libs.dse.metric) {

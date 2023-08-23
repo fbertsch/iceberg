@@ -29,34 +29,43 @@ else
   echo=
 fi
 
-gradle="newt exec ./gradlew"
-gradle_options="--stacktrace"
-gradle_tasks="clean"
+build() {
+  gradle="newt exec ./gradlew"
+  gradle_options="--stacktrace -DscalaVersion=$scala_version"
+  # Disable hive
+  gradle_options+=" -DhiveVersions="
+  gradle_tasks="clean"
 
-# Disable hive
-gradle_options+=" -DhiveVersions="
+  if [[ "$ROCKET_BRANCH" =~ ^netflix/[0-9]+\.[0-9]+\.x$ ]]; then
+    gradle_options+=" -Prelease.scope=patch$candidate_options"
+    gradle_tasks+=" candidate"
 
-if [[ "$ROCKET_BRANCH" =~ ^netflix/[0-9]+\.[0-9]+\.x$ ]]; then
-  gradle_options+=" -Prelease.scope=patch$candidate_options"
-  gradle_tasks+=" candidate"
+  elif [[ "${ROCKET_TAG_TYPE}" == "CANDIDATE" ]]; then
+    echo "RC tag not expected. Fix Jenkins source code branch pattern." >&2
+    false
 
-elif [[ "${ROCKET_TAG_TYPE}" == "CANDIDATE" ]]; then
-  echo "RC tag not expected. Fix Jenkins source code branch pattern." >&2
-  false
+  elif [[ "${ROCKET_TAG_TYPE}" == "FINAL" ]]; then
+    gradle_options+=" -Prelease.useLastTag=true"
+    gradle_tasks+=" final"
 
-elif [[ "${ROCKET_TAG_TYPE}" == "FINAL" ]]; then
-  gradle_options+=" -Prelease.useLastTag=true"
-  gradle_tasks+=" final"
+  elif [[ -n "${ROCKET_PR_NUMBER}" ]]; then
+    gradle_options+=" -Prelease.version=$(pr_version)"
+    gradle_tasks+=" devSnapshot"
 
-elif [[ -n "${ROCKET_PR_NUMBER}" ]]; then
-  gradle_options+=" -Prelease.version=$(pr_version)"
-  gradle_tasks+=" devSnapshot"
+  else # something always safe to run here
+    gradle_tasks+=" check"
 
-else # something always safe to run here
-  gradle_tasks+=" check"
+  fi
 
-fi
+#  gradle_options+=" ${@}"
 
-gradle_options+=" ${@}"
+  ${echo} ${gradle} ${gradle_options} ${gradle_tasks}
+}
 
-${echo} ${gradle} ${gradle_options} ${gradle_tasks}
+export candidate_options=""
+export scala_version="2.13"
+build
+
+export candidate_options=" -Prelease.useLastTag=true"
+export scala_version="2.12"
+build
