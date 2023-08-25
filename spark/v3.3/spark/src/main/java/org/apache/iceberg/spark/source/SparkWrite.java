@@ -205,7 +205,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       CommitMetadata.commitProperties().forEach(operation::set);
     }
 
-    if (wapEnabled && wapId != null) {
+    if (isWapEnabledForTableAndJob()) {
       // write-audit-publish is enabled for this table and job
       // stage the changes without changing the current snapshot
       operation.set(SnapshotSummary.STAGED_WAP_ID_PROP, wapId);
@@ -240,6 +240,10 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       cleanupOnAbort = false;
       throw commitStateUnknownException;
     }
+  }
+
+  private boolean isWapEnabledForTableAndJob() {
+    return wapEnabled && wapId != null;
   }
 
   private void abort(WriterCommitMessage[] messages) {
@@ -305,7 +309,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     public void commit(WriterCommitMessage[] messages) {
       List<DataFile> files = files(messages);
 
-      if (files.isEmpty()) {
+      if (!isWapEnabledForTableAndJob() && files.isEmpty()) {
         LOG.info("Dynamic overwrite is empty, skipping commit");
         return;
       }
