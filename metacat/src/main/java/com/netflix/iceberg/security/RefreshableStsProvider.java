@@ -27,8 +27,9 @@ public class RefreshableStsProvider implements SerializableAwsCredentialsProvide
   public AwsCredentials resolveCredentials() {
     // Refresh if expiring soon, and only once if shared by threads
     synchronized (stsCredentials) {
-      if (getExpiration().isBefore(Instant.now().plusSeconds(refreshIfExpireInSecs))) {
-        LOG.info("Refreshing STS credentials for " + resource + ", expire in " + refreshIfExpireInSecs + " seconds");
+      int randomizedWindow = (int) (refreshIfExpireInSecs * Math.random());
+      if (getExpiration().isBefore(Instant.now().plusSeconds(randomizedWindow))) {
+        LOG.info("Refreshing STS credentials for " + resource + ", expiring/ed at " + getExpiration());
         stsCredentials = stsCredentialsRefresher.get();
       }
     }

@@ -20,6 +20,9 @@
 package com.netflix.iceberg;
 
 import com.google.common.base.Suppliers;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 
 public class GuavaClasses {
 
@@ -28,5 +31,8 @@ public class GuavaClasses {
    */
   static {
     Suppliers.class.getName();
+    CacheBuilder.class.getName();
+    CacheLoader.class.getName();
+    LoadingCache.class.getName();
   }
 }

@@ -5,14 +5,19 @@ import com.netflix.s3authsign.sts.NflxAuthS3StsRest;
 import com.netflix.s3authsts.common.rest.StsCredentials;
 
 import java.io.Serializable;
+import java.lang.reflect.Constructor;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SecurityContext implements Serializable {
   public static final String CREATE_TABLE_FLAG = "iceberg.create.table";
   public static final String SIGNER_RESOURCE = "resource";
   public static final String SIGNER_TOKEN = "token";
+
+  private static final Logger LOG = LoggerFactory.getLogger(SecurityContext.class);
 
   private String signerServiceHost;
   private String signerRegion;
@@ -63,13 +68,24 @@ public class SecurityContext implements Serializable {
   }
 
   public StsCredentials loadStsCredentials() {
-    // Not specifying operations here and server will grant all permissions a user has for now.
     return getNflxStsClient().getSts(tableIdentifier, null, creationLocation).getCredentials();
   }
 
   public void setupStsCredentialsProvider(int refreshIfExpireInSecs) {
     if(awsCredentialsProvider == null) {
-      this.awsCredentialsProvider = new RefreshableStsProvider(refreshIfExpireInSecs, tableIdentifier, loadStsCredentials(), new SimpleStsRefresher(this));
+      Supplier<StsCredentials> refresher = new SimpleStsRefresher(this);
+      if (hasSpark()) {
+        // loading the SparkStsRefresher via reflection
+        try {
+          Class<?> cl = Class.forName("com.netflix.iceberg.security.SparkStsRefresher");
+          Constructor<?> cons = cl.getConstructor(SecurityContext.class);
+          refresher = (Supplier<StsCredentials>) cons.newInstance(this);
+        } catch (Exception e) {
+          LOG.warn("Failed to load com.netflix.iceberg.security.SparkStsRefresher," +
+                  " falling back to use SimpleStsRefresher..");
+        }
+      }
+      this.awsCredentialsProvider = new RefreshableStsProvider(refreshIfExpireInSecs, tableIdentifier, loadStsCredentials(), refresher);
     }
   }
 
@@ -139,5 +155,14 @@ public class SecurityContext implements Serializable {
 
   public void setAwsCredentialsProvider(SerializableAwsCredentialsProvider awsCredentialsProvider) {
     this.awsCredentialsProvider = awsCredentialsProvider;
+  }
+
+  private Boolean hasSpark() {
+    try {
+      Class.forName("org.apache.spark.sql.SparkSession");
+      return true;
+    } catch(ClassNotFoundException ce){
+      return false;
+    }
   }
 }

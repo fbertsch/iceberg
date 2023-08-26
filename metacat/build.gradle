@@ -82,6 +82,7 @@ dependencies {
     exclude group: 'org.apache.avro', module: 'avro'
     exclude group: 'org.slf4j', module: 'slf4j-log4j12'
   }
+  compileOnly project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}")
   testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   testImplementation(project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}")) {
     exclude module: 'iceberg-arrow'
