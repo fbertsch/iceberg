@@ -170,6 +170,12 @@ class BatchPatternWrite implements Write, BatchWrite, RequiresDistributionAndOrd
 
   @Override
   public void commit(WriterCommitMessage[] messages) {
+    if (spark.sparkContext().conf().contains("spark.mad.id")
+        && ((table.properties().containsKey("format") && table.properties().get("format").startsWith("hive"))
+            || (!table.properties().containsKey("current-snapshot-id")))) {
+		throw new RuntimeException("Attempting to write to a hive table with mad enabled");
+    }
+
     try {
       jobCommitter.commitJob(jobContext);
     } catch (IOException e) {
