@@ -12,14 +12,14 @@ public class ViewTest {
 
   @Before
   public void setup() {
-    Configuration conf = new Configuration();
+    Configuration conf = new Configuration(false);
     conf.addResource(ViewTest.class.getResourceAsStream("/hadoop/core-site.xml"));
     catalog = new MetacatViewCatalog(conf, "iceberg-client-integration-test");
   }
 
   @Test
   public void testRead() {
-    ViewDefinition viewDefinition = catalog.loadDefinition("prodhive.common_view.common_view_presto");
+    ViewDefinition viewDefinition = catalog.loadDefinition("testhive.common_view.common_view_presto");
     System.out.println(viewDefinition.schema());
   }
 }

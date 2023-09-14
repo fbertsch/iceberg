@@ -135,6 +135,7 @@ dependencies {
   integrationCompileOnly("org.apache.hadoop:hadoop-mapreduce-client-core")
   integrationCompileOnly(libs.parquet.hadoop.bundle)
   integrationImplementation 'org.junit.jupiter:junit-jupiter-engine'
+  integrationImplementation 'de.huxhorn.sulky:de.huxhorn.sulky.ulid:8.3.0'
 }
 
 jar {
@@ -178,6 +179,7 @@ shadowJar {
     exclude 'com.netflix.bdp.security.**'
     exclude 'com.netflix.bdp.view.**'
   }
+  relocate 'okhttp3', "${relocationPrefix}.okhttp3"
 
   // Relocate Metacat dependencies to avoid conflicts in Spark
   // Metacat needs com.fasterxml relocated, which is already done above

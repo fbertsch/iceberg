@@ -1,5 +1,6 @@
 package com.netflix.iceberg.metacat;
 
+import de.huxhorn.sulky.ulid.ULID;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.time.Instant;
@@ -36,33 +37,61 @@ public class TableTest {
 
   private Catalog catalog;
 
-  private TableIdentifier tableIdentifier;
+  private String catalogName;
+  private String dbName;
+  private String uniqueTableName;
+
+  private TableIdentifier testTableIdentifier;
 
   @BeforeEach
   void setup(TestInfo testInfo) {
-    Configuration conf = new Configuration();
+    Configuration conf = new Configuration(false);
     conf.addResource(TableTest.class.getResourceAsStream("/hadoop/core-site.xml"));
     catalog = new MetacatIcebergCatalog(conf, "iceberg-client-integration-test");
-    tableIdentifier = testTableIdentifier(testInfo);
+    catalogName = "testhive";
+    // Janitor purges tables in this database
+    // https://manuals.netflix.net/view/janitor-docs/mkdocs/master/datahygiene/
+    dbName = "bdp_integration_tests";
+    uniqueTableName = getUniqueTableName(testInfo);
+  }
+
+  private static String getUniqueTableName(TestInfo testInfo) {
+    String testClass = testInfo.getTestClass()
+        .map(Class::getSimpleName)
+        .map(String::toLowerCase)
+        .orElse("unknown");
+    String testMethod = testInfo.getTestMethod()
+        .map(Method::getName)
+        .map(String::toLowerCase)
+        .orElse("unknown");
+    String run_id = new ULID().nextULID().toLowerCase();
+    return String.format("%s_%s_%s", testClass, testMethod, run_id);
+  }
+
+  private Table createTestTable(Schema schema, PartitionSpec spec) {
+    testTableIdentifier = TableIdentifier.of(catalogName, dbName, uniqueTableName);
+    System.err.println("Creating table " + testTableIdentifier);
+    return catalog.createTable(testTableIdentifier, schema, spec);
   }
 
   @AfterEach
-  void shutdown() {
-    catalog.dropTable(tableIdentifier);
-  }
-
-  @Test
-  public void testReadUnsecure() {
-    TableIdentifier tableIdentifier = TableIdentifier.of("prodhive", "iceberg", "dual");
-    Table table = catalog.loadTable(tableIdentifier);
-    printTable(table);
+  void dropTableTable() {
+    if (testTableIdentifier != null) {
+      System.err.println("Dropping table " + testTableIdentifier);
+      catalog.dropTable(testTableIdentifier);
+    }
   }
 
   @Test
   public void testRead() {
-    TableIdentifier tableIdentifier = TableIdentifier.of("prodhive", "iceberg", "secure_dual");
-    Table table = catalog.loadTable(tableIdentifier);
-    printTable(table);
+    TableIdentifier tableIdentifier = TableIdentifier.of(catalogName, "iceberg", "secure_dual");
+    printTable(catalog.loadTable(tableIdentifier));
+  }
+
+  @Test
+  public void testReadUnsecure() {
+    TableIdentifier tableIdentifier = TableIdentifier.of(catalogName, "iceberg", "dual");
+    printTable(catalog.loadTable(tableIdentifier));
   }
 
   @Test
@@ -72,8 +101,7 @@ public class TableTest {
     Record record = GenericRecord.create(schema);
     record.setField("id", 10L);
 
-    catalog.createTable(tableIdentifier, schema);
-    Table table = catalog.loadTable(tableIdentifier);
+    Table table = createTestTable(schema, PartitionSpec.unpartitioned());
 
     String fileName = String.format("%s.parquet", UUID.randomUUID());
     String dataLocation = table.locationProvider().newDataLocation(fileName);
@@ -120,8 +148,7 @@ public class TableTest {
     Record partition = GenericRecord.create(spec.partitionType());
     partition.setField("dateint", currentKey);
 
-    catalog.createTable(tableIdentifier, schema, spec);
-    Table table = catalog.loadTable(tableIdentifier);
+    Table table = createTestTable(schema, spec);
 
     String fileName = String.format("%s.parquet", UUID.randomUUID());
     String dataLocation = table.locationProvider().newDataLocation(
@@ -175,8 +202,7 @@ public class TableTest {
     Record partition = GenericRecord.create(spec.partitionType());
     partition.setField("ts_day", tsDay);
 
-    catalog.createTable(tableIdentifier, schema, spec);
-    Table table = catalog.loadTable(tableIdentifier);
+    Table table = createTestTable(schema, spec);
 
     String fileName = String.format("%s.parquet", UUID.randomUUID());
     String dataLocation = table.locationProvider().newDataLocation(
@@ -224,16 +250,5 @@ public class TableTest {
     for (Record r : IcebergGenerics.read(table).reuseContainers().build()) {
       System.out.println(r.toString());
     }
-  }
-
-  private static TableIdentifier testTableIdentifier(TestInfo testInfo) {
-    return TableIdentifier.of("prodhive", "bdp_integration_tests", uniqueTableName(testInfo));
-  }
-
-  private static String uniqueTableName(TestInfo testInfo) {
-    String className = testInfo.getTestClass().map(Class::getSimpleName).orElse("Unknown");
-    String methodName = testInfo.getTestMethod().map(Method::getName).orElse("unknown");
-    long timestamp = System.currentTimeMillis();
-    return String.format("%s_%s_%d", className, methodName, timestamp);
   }
 }

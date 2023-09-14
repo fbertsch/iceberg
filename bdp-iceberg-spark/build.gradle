@@ -18,6 +18,8 @@ configurations {
     exclude group: 'org.xerial.snappy'
     exclude group: 'javax.xml.bind'
     exclude group: 'javax.annotation'
+    exclude group: 'org.scala-lang'
+    exclude group: 'org.scala-lang.modules'
   }
 }
 
