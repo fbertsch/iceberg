@@ -42,18 +42,20 @@ class DefinitionMetadata {
   private static final String DATA_TTL_PROP = "janitor.data-ttl-days";
   private static final String DATA_TTL_COLUMN_PROP = "janitor.data-ttl-column";
   private static final String DATA_TTL_METHOD_PROP = "janitor.data-ttl-method";
+  public static final String SNAPSHOT_TTL_PROP = "janitor.snapshot-ttl-days";
   private static final String COMMENT_PROP = "comment";
   private static final String VTTS_TIMESTAMP_SECONDS = "vtts.timestamp-utc-seconds";
   private static final String VTTS_TRIGGER_METHOD = "vtts.trigger-method";
 
   private static final Set<String> RESERVED_PROPERTIES = Sets.newHashSet(
       DATA_TTL_PROP, DATA_TTL_COLUMN_PROP, DATA_TTL_METHOD_PROP, COMMENT_PROP,
-      VTTS_TIMESTAMP_SECONDS, VTTS_TRIGGER_METHOD, SECURE_FLAG, AUTH_POLICY);
+      VTTS_TIMESTAMP_SECONDS, VTTS_TRIGGER_METHOD, SECURE_FLAG, AUTH_POLICY, SNAPSHOT_TTL_PROP);
 
   // "definitionMetadata": {
   //   "lifetime": {
   //     "user": "rblue",
-  //     "days": -1 or 120
+  //     "days": -1 or 120,
+  //     "snapshotTTL": 3
   //   },
   //   "data_hygiene": {
   // 	   "delete_method": "manually deleted" or "by partition column",
@@ -64,6 +66,7 @@ class DefinitionMetadata {
   private static final String LIFETIME = "lifetime";
   private static final String USER = "user";
   private static final String DAYS = "days";
+  private static final String SNAPSHOT_TTL = "snapshotTTL";
   private static final String DATA_HYGIENE = "data_hygiene";
   private static final String METHOD = "delete_method";
   private static final String COLUMN = "delete_column";
@@ -104,6 +107,8 @@ class DefinitionMetadata {
   // }
   private static final String DESCRIPTION = "table_description";
 
+  public static final String SET_DEFAULT_SNAPSHOT_TTL = "netflix.janitors.set-default-snapshot-ttl";
+  public static final Integer DEFAULT_SNAPSHOT_TTL_DAYS = 3; /* Store 3 days worth of snapshots by default */
   static boolean isSecure(ObjectNode definitionMetadata) {
    return definitionMetadata != null && definitionMetadata.has(SECURE_FLAG) && definitionMetadata.get(SECURE_FLAG).asBoolean();
   }
@@ -249,13 +254,26 @@ class DefinitionMetadata {
     }
 
     String ttlUpdate = updates.get(DATA_TTL_PROP);
-    if (ttlUpdate != null) {
+    String snapshotTtlUpdate = updates.get(SNAPSHOT_TTL_PROP);
+    if (ttlUpdate != null || snapshotTtlUpdate != null) {
       ObjectNode lifetime = JsonNodeFactory.instance.objectNode();
 
-      try {
-        lifetime.put(DAYS, Long.parseLong(ttlUpdate));
-      } catch (NumberFormatException e) {
-        throw new IllegalArgumentException(String.format("Invalid value for %s: %s", DATA_TTL_PROP, ttlUpdate));
+      if (ttlUpdate != null) {
+        try {
+          lifetime.put(DAYS, Long.parseLong(ttlUpdate));
+        } catch (NumberFormatException e) {
+          throw new IllegalArgumentException(
+              String.format("Invalid value for %s: %s", DATA_TTL_PROP, ttlUpdate));
+        }
+      }
+
+      if (snapshotTtlUpdate != null) {
+        try {
+          lifetime.put(SNAPSHOT_TTL, Long.parseLong(snapshotTtlUpdate));
+        } catch (NumberFormatException e) {
+          throw new IllegalArgumentException(
+              String.format("Invalid value for %s: %s", SNAPSHOT_TTL, snapshotTtlUpdate));
+        }
       }
 
       lifetime.put(USER, MetacatUtil.getUser(base));

@@ -99,6 +99,13 @@ public class MetacatIcebergCatalog extends BaseMetastoreCatalog implements Suppo
       propertiesBuilder.put(TableProperties.DEFAULT_FILE_FORMAT, properties.get("provider"));
     }
 
+    if (!properties.containsKey(DefinitionMetadata.SNAPSHOT_TTL_PROP)
+        && conf.getBoolean(DefinitionMetadata.SET_DEFAULT_SNAPSHOT_TTL, true)) {
+      propertiesBuilder.put(
+          DefinitionMetadata.SNAPSHOT_TTL_PROP,
+          DefinitionMetadata.DEFAULT_SNAPSHOT_TTL_DAYS.toString());
+    }
+
     return super.createTable(identifier, schema, spec, propertiesBuilder.build());
   }
 
