@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg.avro;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.Schema;
@@ -102,10 +104,13 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
         updatedFields.add(avroField);
 
       } else {
+        Set<String> namesSet = new HashSet<>(names);
         Preconditions.checkArgument(
-            field.isOptional() || MetadataColumns.metadataFieldIds().contains(field.fieldId()),
-            "Missing required field: %s",
-            field.name());
+                field.isOptional()
+                        || MetadataColumns.metadataFieldIds().contains(field.fieldId())
+                        || namesSet.contains(field.name()),
+                "Missing required field: %s",
+                field.name());
         // Create a field that will be defaulted to null. We assign a unique suffix to the field
         // to make sure that even if records in the file have the field it is not projected.
         String name = "r" + field.fieldId();
