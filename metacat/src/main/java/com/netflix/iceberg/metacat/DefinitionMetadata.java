@@ -33,6 +33,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.MIGRATED_DATA_LOCATION;
+
 class DefinitionMetadata {
   // security properties
   static final String SECURE_FLAG = "secure";
@@ -106,9 +108,15 @@ class DefinitionMetadata {
   //   "table_description": "Table doc string"
   // }
   private static final String DESCRIPTION = "table_description";
-
   public static final String SET_DEFAULT_SNAPSHOT_TTL = "netflix.janitors.set-default-snapshot-ttl";
   public static final Integer DEFAULT_SNAPSHOT_TTL_DAYS = 3; /* Store 3 days worth of snapshots by default */
+
+  public static String getMigratedDataLoc(ObjectNode definitionMetadata) {
+    if(definitionMetadata.hasNonNull(MIGRATED_DATA_LOCATION)) {
+      return definitionMetadata.get(MIGRATED_DATA_LOCATION).asText().replace("s3n://", "s3://").trim();
+    }
+    return null;
+  }
   static boolean isSecure(ObjectNode definitionMetadata) {
    return definitionMetadata != null && definitionMetadata.has(SECURE_FLAG) && definitionMetadata.get(SECURE_FLAG).asBoolean();
   }

@@ -1,6 +1,5 @@
 package com.netflix.iceberg.metacat;
 
-
 import com.netflix.bdp.security.authorization.AuthPolicy;
 import com.netflix.iceberg.security.MixedFileIO;
 import com.netflix.iceberg.security.S3AuthStrategy;
@@ -64,6 +63,10 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import static com.netflix.iceberg.metacat.DefinitionMetadata.SECURE_FLAG;
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CONF_EXPOSE_INTERNAL_STATES;
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_AUTH_POLICY;
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_METADATA_LOC;
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_MIGRATED_DATA_LOCATION;
 import static com.netflix.iceberg.security.SecurityUtil.SIGNER_DEFAULT_APP_NAME;
 import static com.netflix.iceberg.security.SecurityUtil.getSignerHost;
 import static java.lang.String.format;
@@ -72,6 +75,7 @@ import static org.apache.iceberg.BaseMetastoreTableOperations.CommitStatus.SUCCE
 import static org.apache.iceberg.TableProperties.CLEANUP_METADATA_ON_COMMIT_FAILURE;
 
 class MetacatClientOps extends BaseMetastoreTableOperations {
+
   private static final Logger LOG = LoggerFactory.getLogger(MetacatClientOps.class);
   private static final String SPARK_PROVIDER = "spark.sql.sources.provider";
   private static final Predicate<Exception> RETRY_IF = exc ->
@@ -140,12 +144,37 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
           catalog, database, table, tableType);
 
       metadataLocation = tableProperties.get(METADATA_LOCATION_PROP);
+      final String metadataLocationLocal = metadataLocation;
       NoSuchIcebergTableException.check(metadataLocation != null,
           "Invalid table, missing metadata_location: %s.%s.%s", catalog, database, table);
 
       Map<String, String> reserved = DefinitionMetadata.reservedProperties(tableInfo.getDefinitionMetadata());
       Function<String, TableMetadata> addReservedProperties = (loc) -> {
-        TableMetadata tableMetadata = TableMetadataParser.read(io(), loc).withReservedProperties(reserved);
+        TableMetadata tableMetadata = TableMetadataParser.read(io(), loc).withAdditionalProperties(reserved);
+
+        // Expose internal states as table properties
+        if (conf.getBoolean(CONF_EXPOSE_INTERNAL_STATES, false)) {
+          ImmutableMap.Builder<String, String> builder = ImmutableMap.<String, String>builder();
+          builder.put(INTERNAL_PROP_METADATA_LOC, metadataLocationLocal); //add metadata location
+
+          // Add auth policy if exists
+          String authPolicyStr =  DefinitionMetadata.getAuthPolicy(tableInfo.getDefinitionMetadata());
+          if(authPolicyStr != null) {
+            builder.put(INTERNAL_PROP_AUTH_POLICY, AuthPolicy.valueOf(authPolicyStr).toString());
+          }
+
+          // Add migrated data location if exists
+          String migratedDataLoc = DefinitionMetadata.getMigratedDataLoc(tableInfo.getDefinitionMetadata());
+          if(migratedDataLoc != null) {
+            builder.put(INTERNAL_PROP_MIGRATED_DATA_LOCATION, migratedDataLoc);
+          }
+
+          Map<String, String> internalProps = builder.build();
+          if(!internalProps.isEmpty()) {
+            tableMetadata = tableMetadata.withAdditionalProperties(internalProps);
+          }
+        }
+
         // Table property takes precedence
         if (tableMetadata.properties().containsKey(CLEANUP_METADATA_ON_COMMIT_FAILURE) ||
             conf.get(CLEANUP_METADATA_ON_COMMIT_FAILURE) == null) {
@@ -159,7 +188,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
         }
       };
 
-      String metadataLocationLocal = metadataLocation;
+
       warnLatency("refresh metadata from %s", metadataLocationLocal)
           .run(() -> refreshFromMetadataLocation(metadataLocationLocal, RETRY_IF, 20, addReservedProperties));
     } catch (MetacatNotFoundException e) {
@@ -217,7 +246,9 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
     }
 
     String newMetadataLocation = writeNewMetadata(
-        metadata.removeReservedProperties(DefinitionMetadata::isReservedProperty),
+        metadata
+            .removeProperties(DefinitionMetadata::isReservedProperty)
+            .removeProperties(MetacatIcebergCatalog::isInternalProperty),
         currentVersion() + 1);
 
     CommitStatus commitStatus = FAILURE;

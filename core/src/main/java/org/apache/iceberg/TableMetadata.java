@@ -603,13 +603,13 @@ public class TableMetadata implements Serializable {
         "Invalid table metadata: Cannot find current version");
   }
 
-  public TableMetadata removeReservedProperties(Predicate<String> isPropertyReserved) {
+  public TableMetadata removeProperties(Predicate<String> shouldRemove) {
     if (properties.isEmpty()) {
       return this;
     }
 
     Map<String, String> newProperties = properties.entrySet().stream()
-        .filter(entry -> !isPropertyReserved.test(entry.getKey()))
+        .filter(entry -> !shouldRemove.test(entry.getKey()))
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     if (properties.entrySet().equals(newProperties.entrySet())) {
@@ -622,14 +622,14 @@ public class TableMetadata implements Serializable {
         snapshotsSupplier, snapshotLog, previousFiles, refs, statisticsFiles, changes);
   }
 
-  public TableMetadata withReservedProperties(Map<String, String> reservedProperties) {
-    if (reservedProperties == null || reservedProperties.isEmpty()) {
+  public TableMetadata withAdditionalProperties(Map<String, String> additionalProperties) {
+    if (additionalProperties == null || additionalProperties.isEmpty()) {
       return this;
     }
 
     Map<String, String> newProperties = Stream.concat(
             properties.entrySet().stream(),
-            reservedProperties.entrySet().stream())
+            additionalProperties.entrySet().stream())
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b));
 
     return new TableMetadata(metadataFileLocation, formatVersion, uuid, location, lastSequenceNumber,

@@ -36,6 +36,13 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class MetacatIcebergCatalog extends BaseMetastoreCatalog implements SupportsNamespaces {
+  public static final String MIGRATED_DATA_LOCATION = "migrated_data_location";
+  public static final String CONF_EXPOSE_INTERNAL_STATES = "netflix.iceberg.expose-internal-states-as-properties";
+  public static final String INTERNAL_PROP_PREFIX = "netflix._internal_.";
+  public static final String INTERNAL_PROP_METADATA_LOC = INTERNAL_PROP_PREFIX + "metadata_location";
+  public static final String INTERNAL_PROP_AUTH_POLICY = INTERNAL_PROP_PREFIX + "auth_policy";
+  public static final String INTERNAL_PROP_MIGRATED_DATA_LOCATION = INTERNAL_PROP_PREFIX + MIGRATED_DATA_LOCATION;
+
 
   private static volatile boolean initialized = false;
 
@@ -293,5 +300,9 @@ public class MetacatIcebergCatalog extends BaseMetastoreCatalog implements Suppo
     } catch (MetacatNotFoundException e) {
       throw new NoSuchNamespaceException("Namespace: %s not found.", namespace);
     }
+  }
+
+  public static boolean isInternalProperty(String s) {
+    return s.startsWith(INTERNAL_PROP_PREFIX);
   }
 }
