@@ -210,7 +210,7 @@ public class TableProperties {
   public static final String ORC_COMPRESSION_STRATEGY_DEFAULT = "speed";
 
   public static final String SPLIT_SIZE = "read.split.target-size";
-  public static final long SPLIT_SIZE_DEFAULT = 128 * 1024 * 1024; // 128 MB
+  public static final long SPLIT_SIZE_DEFAULT = 256 * 1024 * 1024; // 256 MB
 
   public static final String METADATA_SPLIT_SIZE = "read.split.metadata-target-size";
   public static final long METADATA_SPLIT_SIZE_DEFAULT = 32 * 1024 * 1024; // 32 MB
