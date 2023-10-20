@@ -19,7 +19,12 @@
 package org.apache.iceberg.util;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.nio.ByteBuffer;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +34,26 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestJsonUtil {
+
+  @Test
+  public void testJsonMapperCanReadJsonWithManyUniqueKeys() throws Exception {
+    Map<String, List<Map<String, Map<String, String>>>> json = new HashMap<>();
+    List<Map<String, Map<String, String>>> snapshots = new ArrayList<>();
+    json.put("snapshots", snapshots);
+    for (int partition = 0; partition < 15; partition++) {
+      Map<String, String> summary = new HashMap<>();
+      for (int i = 0; i < 100; i++) {
+        summary.put("partitions.snapshot_region_date=2023101"+partition+"/maytas_bucket_mmm=" + i, "added-data-files=10,added-records=20178582,added-files-size=60300492");
+      }
+      Map<String, Map<String, String>> snapshot = new HashMap<>();
+      snapshot.put("summary", summary);
+      snapshots.add(snapshot);
+    }
+    String jsonString = JsonUtil.mapper().writeValueAsString(json);
+    InputStream is = new ByteArrayInputStream(jsonString.getBytes());
+    JsonNode node = JsonUtil.mapper().readValue(is, JsonNode.class);
+    Assertions.assertThat(node).isNotNull();
+  }
 
   @Test
   public void get() throws JsonProcessingException {

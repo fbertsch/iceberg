@@ -19,6 +19,7 @@
 package org.apache.iceberg.util;
 
 import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonFactoryBuilder;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -42,7 +43,11 @@ public class JsonUtil {
 
   private JsonUtil() {}
 
-  private static final JsonFactory FACTORY = new JsonFactory();
+  private static final JsonFactory FACTORY =
+      new JsonFactoryBuilder()
+          .configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false)
+          .build();
+
   private static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);
 
   public static JsonFactory factory() {
