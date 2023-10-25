@@ -130,10 +130,10 @@ public class MetacatUtil {
   }
 
   public static Retryer getRetryer(Configuration conf) {
-    long period = conf.getTimeDuration("netflix.metacat.retry.period", 1, TimeUnit.MINUTES);
-    long maxPeriod = conf.getTimeDuration("netflix.metacat.retry.maxPeriod", 5, TimeUnit.MINUTES);
+    long period = conf.getTimeDuration("netflix.metacat.retry.period", 60 * 1000, TimeUnit.MILLISECONDS);
+    long maxPeriod = conf.getTimeDuration("netflix.metacat.retry.maxPeriod", 5 * 60 * 1000, TimeUnit.MILLISECONDS);
     int maxAttempts = conf.getInt("netflix.metacat.retry.maxAttempts", 3);
-    return new Retryer.Default(TimeUnit.MINUTES.toMillis(period), TimeUnit.MINUTES.toMillis(maxPeriod), maxAttempts);
+    return new Retryer.Default(period, maxPeriod, maxAttempts);
   }
 
   public static Request.Options getRequestOptions(Configuration conf) {
