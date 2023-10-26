@@ -25,6 +25,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.internal.SQLConf;
 
 /**
  * A class for common Iceberg configs for Spark reads.
@@ -195,6 +196,7 @@ public class SparkReadConf {
         .sessionConf(netflixTargetSizeConfName())
         .option(SparkReadOptions.SPLIT_SIZE)
         .tableProperty(TableProperties.SPLIT_SIZE)
+        .defaultSessionConfName(SQLConf.FILES_MAX_PARTITION_BYTES().key())
         .defaultValue(TableProperties.SPLIT_SIZE_DEFAULT)
         .parse();
   }

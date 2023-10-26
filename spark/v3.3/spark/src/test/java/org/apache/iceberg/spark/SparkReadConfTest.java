@@ -20,6 +20,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.internal.SQLConf;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -42,9 +43,21 @@ public class SparkReadConfTest {
     }
 
     @Test
-    public void splitSizeNone() {
+    public void splitSizeDefault() {
         SparkReadConf readConf = new SparkReadConf(spark, table, ImmutableMap.of());
         Assert.assertEquals(TableProperties.SPLIT_SIZE_DEFAULT, readConf.splitSize());
+        Assert.assertEquals(null, readConf.splitSizeOption());
+    }
+
+    @Test
+    public void splitSizeMaxPartitionBytes() {
+        long maxPartitionBytes = 67890000;
+        Mockito.when(spark.conf().get(SQLConf.FILES_MAX_PARTITION_BYTES().key(), null))
+            .thenReturn(String.valueOf(maxPartitionBytes));
+
+        SparkReadConf readConf = new SparkReadConf(spark, table, ImmutableMap.of());
+        Assert.assertNotEquals(maxPartitionBytes, TableProperties.SPLIT_SIZE_DEFAULT);
+        Assert.assertEquals(maxPartitionBytes, readConf.splitSize());
         Assert.assertEquals(null, readConf.splitSizeOption());
     }
 
@@ -127,6 +140,24 @@ public class SparkReadConfTest {
     }
 
     @Test
+    public void splitSizeFromDefaultConfAndTableProp() {
+        long maxPartitionBytes = 67890000;
+        Mockito.when(spark.conf().get(SQLConf.FILES_MAX_PARTITION_BYTES().key(), null))
+            .thenReturn(String.valueOf(maxPartitionBytes));
+
+        long splitSizeTableProp = 7654;
+        Mockito.when(table.properties())
+            .thenReturn(ImmutableMap.of(TableProperties.SPLIT_SIZE, String.valueOf(splitSizeTableProp)));
+
+        SparkReadConf readConf = new SparkReadConf(spark, table, ImmutableMap.of());
+        Assert.assertEquals(
+            "Table property over spark.sql.files.maxPartitionBytes",
+            splitSizeTableProp,
+            readConf.splitSize());
+        Assert.assertEquals(null, readConf.splitSizeOption());
+    }
+
+    @Test
     public void splitSizeFromAll() {
         long splitSizeOption = 12345;
         Map<String, String> options = ImmutableMap.of(SparkReadOptions.SPLIT_SIZE, Long.toString(splitSizeOption));
@@ -189,9 +220,9 @@ public class SparkReadConfTest {
         long firstSnapshotIdConf = 54321;
         long secondSnapshotIdConf = 12345;
         Mockito.when(spark.conf().get("spark.netflix.db.tbl.snapshot-id", null))
-                .thenReturn(String.valueOf(firstSnapshotIdConf));
+            .thenReturn(String.valueOf(firstSnapshotIdConf));
         Mockito.when(spark.conf().get("spark.netflix.db.tbl2.snapshot-id", null))
-                .thenReturn(String.valueOf(secondSnapshotIdConf));
+            .thenReturn(String.valueOf(secondSnapshotIdConf));
 
         SparkReadConf firstReadConf = new SparkReadConf(spark, table, ImmutableMap.of());
         Assert.assertEquals(firstSnapshotIdConf, firstReadConf.snapshotId().longValue());
