@@ -32,13 +32,22 @@ dependencies {
   implementation libs.metacat.netflix.client
 
   implementation(libs.s3authsigncde.s3.auth.sign.client) {
-    transitive = false
+    exclude group: 'com.amazonaws'
+    exclude group: 'com.netflix.archaius'
+    exclude group: 'netflix'
+    exclude group: 'software.amazon.awssdk'
   }
   implementation(libs.s3authsigncde.s3.auth.sts.client) {
-    transitive = false
+    exclude group: 'com.amazonaws'
+    exclude group: 'com.netflix.archaius'
+    exclude group: 'netflix'
+    exclude group: 'software.amazon.awssdk'
   }
   implementation(libs.s3authsigncde.s3.auth.sign.common) {
-    transitive = false
+    exclude group: 'com.amazonaws'
+    exclude group: 'com.netflix.archaius'
+    exclude group: 'netflix'
+    exclude group: 'software.amazon.awssdk'
   }
 
   implementation libs.bdp.iceberg.acl.storage

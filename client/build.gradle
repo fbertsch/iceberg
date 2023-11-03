@@ -29,9 +29,15 @@ dependencies {
   }
 
   // Added because their transitive dependencies are needed to access secure table with the single bdp-iceberg-client jar
-  implementation(libs.s3authsigncde.s3.auth.sign.client)
-  implementation(libs.s3authsigncde.s3.auth.sts.client)
-  implementation(libs.s3authsigncde.s3.auth.sign.common)
+  implementation(libs.s3authsigncde.s3.auth.sign.client) {
+    exclude group: 'software.amazon.awssdk'  // do not use the transitive version
+  }
+  implementation(libs.s3authsigncde.s3.auth.sts.client) {
+    exclude group: 'software.amazon.awssdk'  // do not use the transitive version
+  }
+  implementation(libs.s3authsigncde.s3.auth.sign.common) {
+    exclude group: 'software.amazon.awssdk'  // do not use the transitive version
+  }
 
   shadow(project(":iceberg-parquet")) {
     exclude group: 'com.netflix.iceberg' // included with iceberg-data
@@ -180,6 +186,7 @@ shadowJar {
     exclude 'com.netflix.bdp.view.**'
   }
   relocate 'okhttp3', "${relocationPrefix}.okhttp3"
+  relocate 'org.apache.http', "${relocationPrefix}.org.apache.http"
 
   // Relocate Metacat dependencies to avoid conflicts in Spark
   // Metacat needs com.fasterxml relocated, which is already done above
@@ -190,6 +197,8 @@ shadowJar {
   // Relocate nflxe2etokens dependencies
   relocate 'com.netflix.nflxe2etokens',"${relocationPrefix}.com.netflix.nflxe2etokens"
   relocate 'com.netflix.ksgateway', "${relocationPrefix}.com.netflix.ksgateway"
+  relocate 'com.netflix.spectator.ipc', "${relocationPrefix}.com.netflix.spectator.ipc"
+  relocate 'com.netflix.spectator.impl', "${relocationPrefix}.com.netflix.spectator.impl"
 
   archiveClassifier = null
 }

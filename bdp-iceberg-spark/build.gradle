@@ -91,6 +91,7 @@ shadowJar {
   relocate 'com.google', "${relocationPrefix}.com.google"
   relocate 'com.fasterxml', "${relocationPrefix}.com.fasterxml"
   relocate 'com.github.benmanes', "${relocationPrefix}.com.github.benmanes"
+  relocate 'okhttp3', "${relocationPrefix}.okhttp3"
   relocate 'org.checkerframework', "${relocationPrefix}.org.checkerframework"
   relocate 'org.apache.avro', "${relocationPrefix}.org.apache.avro"
   relocate 'avro.shaded', "${relocationPrefix}.avro.shaded"
@@ -108,11 +109,13 @@ shadowJar {
   relocate 'com.carrotsearch', "${relocationPrefix}.com.carrotsearch"
   relocate 'org.threeten.extra', "${relocationPrefix}.org.threeten.extra"
   relocate 'com.netflix.metatron', "${relocationPrefix}.com.netflix.metatron"
+  relocate 'org.apache.http', "${relocationPrefix}.org.apache.http"
 
   // Relocate Metacat dependencies to avoid conflicts in Spark
   // Metacat needs com.fasterxml relocated, which is already done above
   relocate 'com.netflix.metacat', "${relocationPrefix}.com.netflix.metacat"
   relocate 'com.netflix.ksgateway', "${relocationPrefix}.com.netflix.ksgateway"
+  relocate 'com.netflix.spectator.ipc', "${relocationPrefix}.com.netflix.spectator.ipc"
 
   archiveClassifier.set('')
 }
