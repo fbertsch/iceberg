@@ -34,6 +34,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.LocationProviders;
@@ -63,6 +64,8 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import static com.netflix.iceberg.metacat.DefinitionMetadata.SECURE_FLAG;
+import static com.netflix.iceberg.metacat.NdcUtil.NDC_PROD_PREFIX;
+import static com.netflix.iceberg.metacat.NdcUtil.NDC_UPDATE_ENABLED_CONF;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CONF_EXPOSE_INTERNAL_STATES;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_AUTH_POLICY;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_METADATA_LOC;
@@ -243,6 +246,24 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
 
     if (secure) {
       SecurityUtil.validateSecureBuckets(metadata.location(), metadata.properties());
+    }
+
+    Map<String, String> props = metadata.properties();
+    if (conf.getBoolean(NDC_UPDATE_ENABLED_CONF, true) && props != null) {
+      Map<String, String> ndcProps =
+          props.entrySet()
+              .stream()
+              .filter(k -> k.getKey().startsWith(NDC_PROD_PREFIX))
+              .collect(Collectors.toMap(e -> e.getKey().substring(NDC_PROD_PREFIX.length()), e -> e.getValue()));
+      if (!ndcProps.isEmpty()) {
+        NdcUtil.updateNdc(catalog, database, table, ndcProps);
+        Map<String, String> propsWithoutNdc =
+            props.entrySet()
+                .stream()
+                .filter(k -> !k.getKey().startsWith(NDC_PROD_PREFIX))
+                .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
+        metadata = metadata.replaceProperties(propsWithoutNdc);  // reserved properties will be handled later
+      }
     }
 
     String newMetadataLocation = writeNewMetadata(
