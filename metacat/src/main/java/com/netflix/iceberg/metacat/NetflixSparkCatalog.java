@@ -129,6 +129,24 @@ public class NetflixSparkCatalog extends BaseCatalog implements ViewCatalog {
   }
 
   @Override
+  public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
+    try {
+      return icebergCatalog.loadTable(ident, version);
+    } catch (NoSuchTableException e) {
+      return batchCatalog.loadTable(ident, version);
+    }
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, long timestamp) throws NoSuchTableException {
+    try {
+      return icebergCatalog.loadTable(ident, timestamp);
+    } catch (NoSuchTableException e) {
+      return batchCatalog.loadTable(ident, timestamp);
+    }
+  }
+
+  @Override
   public Table createTable(Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties)
       throws TableAlreadyExistsException, NoSuchNamespaceException {
     String format = getFormat(properties);
