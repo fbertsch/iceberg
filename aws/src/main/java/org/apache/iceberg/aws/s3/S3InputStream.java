@@ -88,31 +88,62 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     next = newPos;
   }
 
-  @Override
-  public int read() throws IOException {
+  private int readWithRetry(final int retryCount) throws IOException {
+    if (retryCount > s3FileIOProperties.readRetries()) {
+      throw new IOException("Failed to read from S3 after " + s3FileIOProperties.readRetries() + " retries");
+    }
+
     Preconditions.checkState(!closed, "Cannot read: already closed");
     positionStream();
 
-    pos += 1;
-    next += 1;
-    readBytes.increment();
-    readOperations.increment();
+    try {
+      final int byteRead = stream.read();
+      pos += 1;
+      next += 1;
+      readBytes.increment();
+      readOperations.increment();
+      return byteRead;
+    } catch (IOException e) {
+      LOG.warn("IOException while reading from S3. Attempting retry #{}", retryCount + 1, e);
+      // Retry connection reset. Prior call to positionStream() ensures
+      // we will start at the correct offset.
+      openStream();
+      return readWithRetry(retryCount + 1);
+    }
+  }
 
-    return stream.read();
+  @Override
+  public int read() throws IOException {
+    return readWithRetry(0);
+  }
+
+  private int readWithRetry(final byte[] b, final int off, final int len, final int retryCount) throws IOException {
+    if (retryCount > s3FileIOProperties.readRetries()) {
+      throw new IOException("Failed to read from S3 after " + s3FileIOProperties.readRetries() + " retries");
+    }
+
+    Preconditions.checkState(!closed, "Cannot read: already closed");
+    positionStream();
+
+    try {
+      final int bytesRead = stream.read(b, off, len);
+      pos += bytesRead;
+      next += bytesRead;
+      readBytes.increment(bytesRead);
+      readOperations.increment();
+      return bytesRead;
+    } catch (IOException e) {
+      LOG.warn("IOException while reading from S3. Attempting retry #{}", retryCount + 1, e);
+      // Retry connection reset. Prior call to positionStream() ensures
+      // we will start at the correct offset.
+      openStream();
+      return readWithRetry(b, off, len, retryCount + 1);
+    }
   }
 
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
-    Preconditions.checkState(!closed, "Cannot read: already closed");
-    positionStream();
-
-    int bytesRead = stream.read(b, off, len);
-    pos += bytesRead;
-    next += bytesRead;
-    readBytes.increment(bytesRead);
-    readOperations.increment();
-
-    return bytesRead;
+    return readWithRetry(b, off, len, 0);
   }
 
   @Override

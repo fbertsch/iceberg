@@ -352,6 +352,13 @@ public class S3FileIOProperties implements Serializable {
 
   public static final boolean PRELOAD_CLIENT_ENABLED_DEFAULT = false;
 
+  /**
+   * Configure the number of retry/resumes for interrupted reads from S3.
+   */
+  public static final String READ_RETRIES = "s3.read-retries";
+
+  public static final int READ_RETRIES_DEFAULT = 3;
+
   private String sseType;
   private String sseKey;
   private String sseMd5;
@@ -381,6 +388,7 @@ public class S3FileIOProperties implements Serializable {
   private final boolean isRemoteSigningEnabled;
   private String writeStorageClass;
   private final Map<String, String> allProperties;
+  private int readRetries;
 
   public S3FileIOProperties() {
     this.sseType = SSE_TYPE_NONE;
@@ -411,6 +419,7 @@ public class S3FileIOProperties implements Serializable {
     this.isAccelerationEnabled = ACCELERATION_ENABLED_DEFAULT;
     this.isRemoteSigningEnabled = REMOTE_SIGNING_ENABLED_DEFAULT;
     this.allProperties = Maps.newHashMap();
+    this.readRetries = READ_RETRIES_DEFAULT;
 
     ValidationException.check(
         keyIdAccessKeyBothConfigured(),
@@ -500,10 +509,19 @@ public class S3FileIOProperties implements Serializable {
             properties, REMOTE_SIGNING_ENABLED, REMOTE_SIGNING_ENABLED_DEFAULT);
     this.writeStorageClass = properties.get(WRITE_STORAGE_CLASS);
     this.allProperties = SerializableMap.copyOf(properties);
+    this.readRetries = PropertyUtil.propertyAsInt(properties, READ_RETRIES, READ_RETRIES_DEFAULT);
 
     ValidationException.check(
         keyIdAccessKeyBothConfigured(),
         "S3 client access key ID and secret access key must be set at the same time");
+  }
+
+  public int readRetries() {
+    return readRetries;
+  }
+
+  public void setReadRetries(int readRetries) {
+    this.readRetries = readRetries;
   }
 
   public String sseType() {
