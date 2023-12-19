@@ -594,7 +594,7 @@ class SparkTables {
     ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
     map.entrySet().stream()
         .filter(entry -> entry.getKey().startsWith(prefix))
-        .forEach(entry -> builder.put(entry.getKey().replaceFirst(prefix, ""), entry.getKey()));
+        .forEach(entry -> builder.put(entry.getKey().replaceFirst(prefix, ""), entry.getValue()));
     return builder.build();
   }
 
