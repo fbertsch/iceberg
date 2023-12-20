@@ -384,6 +384,22 @@ public class SparkScanBuilder
 
   private Scan buildBatchScan() {
     Long snapshotId = readConf.snapshotId();
+
+    // Netflix specific changes that include the WAP staged snapshot by default.
+    boolean includeWapSnapshot = Boolean.parseBoolean(spark.conf().get("spark.netflix.wap.include-staged", "false"));
+    if (includeWapSnapshot && snapshotId == null) {
+      String wapId = spark.conf().get("spark.wap.id", null);
+      if (wapId != null) {
+        for (Snapshot snapshot : table.snapshots()) {
+          if (wapId.equals(snapshot.summary().get("wap.id"))) {
+            snapshotId = snapshot.snapshotId();
+            LOG.warn("Including snapshot {} with wap.id {} when reading table {}", snapshotId, wapId, table.name());
+            break;
+          }
+        }
+      }
+    }
+
     Long asOfTimestamp = readConf.asOfTimestamp();
     String branch = readConf.branch();
     String tag = readConf.tag();
