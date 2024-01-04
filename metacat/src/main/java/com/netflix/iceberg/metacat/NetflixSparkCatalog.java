@@ -271,6 +271,12 @@ public class NetflixSparkCatalog extends BaseCatalog implements ViewCatalog {
       newProperties.put(TableProperties.DEFAULT_FILE_FORMAT, format);
     }
 
+    if (!properties.containsKey(DefinitionMetadata.SNAPSHOT_TTL_PROP)) {
+      newProperties.put(
+              DefinitionMetadata.SNAPSHOT_TTL_PROP,
+              DefinitionMetadata.DEFAULT_SNAPSHOT_TTL_DAYS.toString());
+    }
+    
     return newProperties.build();
   }
 
