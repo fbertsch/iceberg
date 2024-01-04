@@ -144,13 +144,13 @@ class BatchPatternWrite implements Write, BatchWrite, RequiresDistributionAndOrd
 
   @Override
   public String description() {
-    String schema = Spark3Util.describe(SparkSchemaUtil.convert(writeSchema));
-    String format = table.formatDescription();
-    if (overwriteDynamic) {
-      return String.format("BatchPatternReplace schema=%s, format=%s", schema, format);
-    } else {
-      return String.format("BatchPatternAppend schema=%s, format=%s", schema, format);
-    }
+    return String.format("BatchPatternWrite(table=%s, overwrite=%s, format=%s)",
+            table, overwriteDynamic, table.formatDescription());
+  }
+
+  @Override
+  public String toString() {
+    return description();
   }
 
   @Override
