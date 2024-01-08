@@ -5,6 +5,7 @@ import com.netflix.iceberg.security.MixedFileIO;
 import com.netflix.iceberg.security.S3AuthStrategy;
 import com.netflix.iceberg.security.SecurityContext;
 import com.netflix.iceberg.security.SecurityUtil;
+import com.netflix.iceberg.security.SimpleStsRefresher;
 import com.netflix.metacat.client.Client;
 import com.netflix.metacat.common.QualifiedName;
 import com.netflix.metacat.common.dto.StorageDto;
@@ -19,6 +20,7 @@ import com.netflix.metacat.shaded.com.fasterxml.jackson.databind.node.ObjectNode
 import com.netflix.nflxe2etokens.validation.common.E2eTokenConstants;
 import com.netflix.s3authsign.common.rest.RemoteSigningAccessDeniedException;
 import com.netflix.s3authsign.common.rest.S3StsAccessDeniedException;
+import com.netflix.s3authsts.common.rest.StsCredentials;
 import com.netflix.spectator.api.Spectator;
 import com.netflix.spectator.ipc.IpcLogger;
 import java.io.Closeable;
@@ -35,6 +37,7 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.LocationProviders;
@@ -70,6 +73,7 @@ import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CONF_EXPOSE_INTE
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_AUTH_POLICY;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_METADATA_LOC;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_MIGRATED_DATA_LOCATION;
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CONF_INCLUDE_STS_CREDS_PROPS;
 import static com.netflix.iceberg.security.SecurityUtil.SIGNER_DEFAULT_APP_NAME;
 import static com.netflix.iceberg.security.SecurityUtil.getSignerHost;
 import static java.lang.String.format;
@@ -131,6 +135,11 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
     return fullName;
   }
 
+  private StsCredentials getStsCredentials() {
+    this.io(); // init any required io which configures securityContext
+    return new SimpleStsRefresher(this.securityContext).get();
+  }
+
   @Override
   public synchronized void doRefresh() {
     String metadataLocation = null;
@@ -154,6 +163,21 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
       Map<String, String> reserved = DefinitionMetadata.reservedProperties(tableInfo.getDefinitionMetadata());
       Function<String, TableMetadata> addReservedProperties = (loc) -> {
         TableMetadata tableMetadata = TableMetadataParser.read(io(), loc).withAdditionalProperties(reserved);
+
+        boolean isSecureTable = DefinitionMetadata.isSecure(tableInfo.getDefinitionMetadata());
+        if (isSecureTable &&
+          conf.getBoolean(CONF_INCLUDE_STS_CREDS_PROPS, false)) {
+            LOG.info("Fetching sts credentials to include in properties for table: " + tableInfo.getName());
+            StsCredentials credentials = getStsCredentials();
+            Map<String, String> stsTokenProperties =
+                    ImmutableMap.<String, String>builder()
+                            .put("s3.access-key-id", credentials.getAccessKeyId())
+                            .put("s3.secret-access-key", credentials.getSecretKey())
+                            .put("s3.session-token", credentials.getSessionToken())
+                            .put("s3.region", "us-east-1")
+                            .build();
+            tableMetadata = tableMetadata.withAdditionalProperties(stsTokenProperties);
+        }
 
         // Expose internal states as table properties
         if (conf.getBoolean(CONF_EXPOSE_INTERNAL_STATES, false)) {

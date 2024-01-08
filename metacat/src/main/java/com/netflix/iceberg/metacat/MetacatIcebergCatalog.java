@@ -38,6 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 public class MetacatIcebergCatalog extends BaseMetastoreCatalog implements SupportsNamespaces {
   public static final String MIGRATED_DATA_LOCATION = "migrated_data_location";
   public static final String CONF_EXPOSE_INTERNAL_STATES = "netflix.iceberg.expose-internal-states-as-properties";
+  public static final String CONF_INCLUDE_STS_CREDS_PROPS = "netflix.secure.include-sts-creds";
   public static final String INTERNAL_PROP_PREFIX = "netflix._internal_.";
   public static final String INTERNAL_PROP_METADATA_LOC = INTERNAL_PROP_PREFIX + "metadata_location";
   public static final String INTERNAL_PROP_AUTH_POLICY = INTERNAL_PROP_PREFIX + "auth_policy";
