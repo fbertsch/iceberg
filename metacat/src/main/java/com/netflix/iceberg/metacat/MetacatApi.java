@@ -306,12 +306,16 @@ public class MetacatApi implements MetacatV1 {
     }
 
     public MetacatIpcLogEntry withTable(String tableName) {
-      ipcLogEntry.addTag("metacat.table", tableName);
+      // Remove this tag due to high cardinality.
+      // See https://netflix.slack.com/archives/C0RAMNX8U/p1705440801880579.
+      // ipcLogEntry.addTag("metacat.table", tableName);
       return this;
     }
 
     public MetacatIpcLogEntry withView(String viewName) {
-      ipcLogEntry.addTag("metacat.view", viewName);
+      // Remove this tag due to high cardinality.
+      // See https://netflix.slack.com/archives/C0RAMNX8U/p1705440801880579.
+      // ipcLogEntry.addTag("metacat.view", viewName);
       return this;
     }
 
