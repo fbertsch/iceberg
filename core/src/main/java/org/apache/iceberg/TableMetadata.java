@@ -1819,4 +1819,61 @@ public class TableMetadata implements Serializable {
 
     return newProperties.build();
   }
+
+  // WARNING: Netflix BDC Signer Specific Implementation - Don't use anywhere else
+  @Deprecated
+  public TableMetadata(
+          String metadataFileLocation,
+          String location,
+          String uuid,
+          Map<String, String> properties
+  ) {
+    this.metadataFileLocation = metadataFileLocation;
+    this.location = location;
+    this.uuid = uuid;
+    this.properties = properties;
+
+    // Default Values
+    this.formatVersion = -1;
+    this.lastSequenceNumber = -1;
+    this.lastUpdatedMillis = -1;
+    this.lastColumnId = -1;
+    this.currentSchemaId = -1;
+    this.schemas = null;
+    this.defaultSpecId = -1;
+    this.specs = null;
+    this.lastAssignedPartitionId = -1;
+    this.defaultSortOrderId = -1;
+    this.sortOrders = null;
+    this.currentSnapshotId = -1;
+    this.snapshots = null;
+    this.snapshotsById = null;
+    this.schemasById = null;
+    this.specsById = null;
+    this.sortOrdersById = null;
+    this.snapshotLog = null;
+    this.previousFiles = null;
+    this.refs = null;
+    this.statisticsFiles = null;
+    this.changes = null;
+  }
+
+  @Deprecated
+  public TableMetadata addAdditionalPropertiesToAuthOnlyMetadata(Map<String, String> additionalProperties) {
+    if (additionalProperties == null || additionalProperties.isEmpty()) {
+      return this;
+    }
+
+    Map<String, String> newProperties = Stream.concat(
+                    properties.entrySet().stream(),
+                    additionalProperties.entrySet().stream()
+            ).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> b));
+
+    return new TableMetadata(
+            metadataFileLocation,
+            location,
+            uuid,
+            newProperties
+    );
+  }
 }

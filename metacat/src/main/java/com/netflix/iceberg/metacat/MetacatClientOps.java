@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -53,6 +54,8 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import com.netflix.iceberg.security.TableAuthMetadata;
+import com.netflix.iceberg.security.TableAuthMetadataParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -63,6 +66,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import static com.netflix.iceberg.metacat.DefinitionMetadata.SECURE_FLAG;
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.LOAD_AUTH_ONLY_METADATA;
 import static com.netflix.iceberg.metacat.NdcUtil.NDC_PROD_PREFIX;
 import static com.netflix.iceberg.metacat.NdcUtil.NDC_UPDATE_ENABLED_CONF;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CONF_EXPOSE_INTERNAL_STATES;
@@ -159,8 +163,13 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
           "Invalid table, missing metadata_location: %s.%s.%s", catalog, database, table);
 
       Map<String, String> reserved = DefinitionMetadata.reservedProperties(tableInfo.getDefinitionMetadata());
+
       Function<String, TableMetadata> addReservedProperties = (loc) -> {
-        TableMetadata tableMetadata = TableMetadataParser.read(io(), loc).withAdditionalProperties(reserved);
+        Map<String, String> finalProperties = new HashMap<>();
+
+        TableMetadata tableMetadata = getTableMetadata(loc);
+        finalProperties.putAll(tableMetadata.properties());
+        finalProperties.putAll(reserved);
 
         boolean isSecureTable = DefinitionMetadata.isSecure(tableInfo.getDefinitionMetadata());
         if (isSecureTable &&
@@ -174,7 +183,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
                             .put("s3.session-token", credentials.getSessionToken())
                             .put("s3.region", "us-east-1")
                             .build();
-            tableMetadata = tableMetadata.withAdditionalProperties(stsTokenProperties);
+            finalProperties.putAll(stsTokenProperties);
         }
 
         // Expose internal states as table properties
@@ -194,10 +203,13 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
             builder.put(INTERNAL_PROP_MIGRATED_DATA_LOCATION, migratedDataLoc);
           }
 
-          Map<String, String> internalProps = builder.build();
-          if(!internalProps.isEmpty()) {
-            tableMetadata = tableMetadata.withAdditionalProperties(internalProps);
-          }
+          finalProperties.putAll(builder.build());
+        }
+
+        if (conf.getBoolean(LOAD_AUTH_ONLY_METADATA, false)) {
+          tableMetadata = tableMetadata.addAdditionalPropertiesToAuthOnlyMetadata(finalProperties);
+        } else {
+          tableMetadata = tableMetadata.withAdditionalProperties(finalProperties);
         }
 
         // Table property takes precedence
@@ -227,6 +239,26 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
       String metadataLocationLocal = metadataLocation;
       warnLatency("refresh metadata from %s after Metacat not found", metadataLocationLocal)
           .run(() -> refreshFromMetadataLocation(metadataLocationLocal, RETRY_IF, 20));
+    }
+  }
+
+  private TableMetadata getTableMetadata(String loc) {
+    if (this.conf.getBoolean(LOAD_AUTH_ONLY_METADATA, false)) {
+      try {
+        LOG.info("Loading auth only metadata");
+        TableAuthMetadata tableAuthMetadata = TableAuthMetadataParser.get(io().newInputFile(loc));
+        return new TableMetadata(
+                loc,
+                tableAuthMetadata.getLocation(),
+                tableAuthMetadata.getTableUuid(),
+                tableAuthMetadata.getProperties()
+        );
+      } catch (Exception e) {
+        LOG.warn("Auth only metadata load failed. Reverting back to default metadata load", e);
+        return TableMetadataParser.read(io(), loc);
+      }
+    } else {
+      return TableMetadataParser.read(io(), loc);
     }
   }
 
