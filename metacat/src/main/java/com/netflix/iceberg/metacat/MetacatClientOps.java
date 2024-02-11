@@ -74,6 +74,7 @@ import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_AU
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_METADATA_LOC;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_MIGRATED_DATA_LOCATION;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CONF_INCLUDE_STS_CREDS_PROPS;
+import static com.netflix.iceberg.security.IcebergAclStorage.ACL_PROPERTY_KEY;
 import static com.netflix.iceberg.security.SecurityUtil.SIGNER_DEFAULT_APP_NAME;
 import static com.netflix.iceberg.security.SecurityUtil.getSignerHost;
 import static java.lang.String.format;
@@ -283,6 +284,9 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
         if (!DefinitionMetadata.isSecure(definitionMetadata)) {
           DefinitionMetadata.markSecure(definitionMetadata);
         }
+
+        // For new secure table creation, always ignore existing acls
+        metadata = metadata.removeProperties(a -> a.equals(ACL_PROPERTY_KEY));
 
         //Always ensure that an ACL entry exists for secure tables
         try {
