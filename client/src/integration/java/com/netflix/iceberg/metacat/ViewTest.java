@@ -5,7 +5,9 @@ import com.netflix.bdp.view.ViewDefinition;
 import org.apache.hadoop.conf.Configuration;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.jupiter.api.Timeout;
 
+@Timeout(value = 30)
 public class ViewTest {
 
   private BaseMetastoreViews catalog;
