@@ -13,6 +13,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
 
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.assertj.core.api.Condition;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -22,6 +23,7 @@ import java.util.Set;
 
 import static com.netflix.iceberg.security.SecurityUtil.DEFAULT_SECURE_BUCKET;
 import static com.netflix.iceberg.security.SecurityUtil.WAREHOUSE_PREFIX;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 
 public class SecurityUtilTest {
@@ -112,7 +114,7 @@ public class SecurityUtilTest {
         .findFirst().orElseThrow(() -> new AssertionError("INSERT acl not found")).principals().size());
   }
 
-  @Test(expected = ValidationException.class)
+  @Test
   public void testMultipleGrantors() {
     String catalog = "prodhive";
     String database = "secure";
@@ -123,10 +125,22 @@ public class SecurityUtilTest {
         PartitionSpec.unpartitioned(),
         "s3://bucket/path",
         ImmutableMap.of(
-            "grantor.user", "testUser@netflix.com",
-            "grantor.role", "jsmith@netflix.com"
+                "grantor.user", "testUser_1@netflix.com, testUser_2@netflix.com",
+                "grantor.role", "testGroup_1@netflix.com, testGroup_2@netflix.com",
+                "grant.select.user", "jsmith@netflix.com"
         ));
-    SecurityUtil.initializeACL(conf, TableIdentifier.of(catalog, database, tableName), tableMetadata, authPolicy);
+
+    tableMetadata = SecurityUtil.initializeACL(conf, TableIdentifier.of(catalog, database, tableName), tableMetadata, authPolicy);
+
+    Set<Acl> acls = AclJsonParser.fromJson(tableMetadata.properties().get(IcebergAclStorage.ACL_PROPERTY_KEY));
+
+    assertThat(tableMetadata.properties()).as("ACLs not in table metadata").containsKey(IcebergAclStorage.ACL_PROPERTY_KEY);
+    assertThat(acls).hasSize(2);
+    Condition<Acl> withFourPrincipal = new Condition<>(m -> m.principals().size() == 4, "has 4 principal");
+    assertThat(acls.stream().filter(Acl::withGrant)).haveExactly(1, withFourPrincipal); // 2 user grantor & 2 group grantor
+    assertThat(acls.stream().filter(acl -> acl.privileges().contains(Privilege.SELECT))).hasSize(1);
+    assertThat(acls.stream().filter(acl -> acl.privileges().contains(Privilege.INSERT))).isEmpty();
+    assertThat(acls.stream().filter(acl -> acl.privileges().contains(Privilege.DELETE))).isEmpty();
   }
 
   @Test

@@ -75,7 +75,7 @@ public class SecurityUtil {
   static final String SECURE_DATABASES_DEFAULT = "secure";
   static final String NEW_TABLE_ALWAYS_SECURE = "netflix.warehouse.secure.always";
   static final String SAVE_ACL_AS_ID = "netflix.warehouse.secure.save-acl-as-id";
-  private static final ImmutableMap<String, PrincipalType> GRANTORS = ImmutableMap.of(
+  private static final ImmutableMap<String, PrincipalType> GRANTOR_TYPES = ImmutableMap.of(
     "grantor.role", PrincipalType.GROUP,
     "grantor.roles", PrincipalType.GROUP,
     "grantor.user", PrincipalType.USER,
@@ -192,23 +192,24 @@ public class SecurityUtil {
     String table = identifier.name();
 
     Table resource = new Table(new Schema(new Catalog(catalog), database), table, metadata.uuid());
-    NetflixPrincipal grantorFromConfAndProps = findExplicitGrantor(conf, metadata);
 
-    Map<Privilege, Set<NetflixPrincipal>> grants = parseGrants(conf, metadata.properties());
+    final NetflixPrincipal localPrincipal = resolveLocalPrincipal(conf);
 
+    // Handle Grants
+    Map<Privilege, Set<NetflixPrincipal>> grants = findGrants(conf, metadata);
     Set<Acl> acls = grants.entrySet().stream()
-        .map(e -> new Acl(e.getValue(), singleton(e.getKey()), singleton(resource), grantorFromConfAndProps, false))
-        .collect(Collectors.toSet());
+            .map(e -> new Acl(e.getValue(), singleton(e.getKey()), singleton(resource), localPrincipal, false))
+            .collect(Collectors.toSet());
 
-    // Explicitly add all for grantor
-    if(grantorFromConfAndProps != null) {
-      acls.add(new Acl(singleton(grantorFromConfAndProps), singleton(Privilege.ALL), singleton(resource), grantorFromConfAndProps, true ));
+    // Handle Grantors
+    Set<NetflixPrincipal> grantors = findGrantors(conf, metadata);
+    // Explicitly add ALL privilege for grantors
+    if(!grantors.isEmpty()) {
+      acls.add(new Acl(grantors, singleton(Privilege.ALL), singleton(resource), localPrincipal, true ));
     }
 
     // No explicit grants set from conf and properties
-    NetflixPrincipal localPrincipal = null;
     if (acls.isEmpty()) {
-      localPrincipal = resolveLocalPrincipal(conf);
       if (localPrincipal.type() == PrincipalType.USER) {
         acls.add(new Acl(singleton(localPrincipal), singleton(Privilege.ALL), singleton(resource), localPrincipal, true));
       } else if (authPolicy == AuthPolicy.STRICT && localPrincipal.type() == PrincipalType.APPLICATION) {
@@ -224,9 +225,6 @@ public class SecurityUtil {
 
     // Add local identity as grantor if no grantor specified by user
     if(acls.stream().noneMatch(acl -> acl.withGrant() != null && acl.withGrant().booleanValue())) {
-      if(localPrincipal == null) {
-        localPrincipal = resolveLocalPrincipal(conf);
-      }
       acls.add(new Acl(singleton(localPrincipal), singleton(Privilege.ALL), singleton(resource), localPrincipal, true));
     }
 
@@ -242,39 +240,32 @@ public class SecurityUtil {
     return metadata.replaceProperties(newProperties);
   }
 
-  private static NetflixPrincipal findExplicitGrantor(Configuration conf, TableMetadata metadata) {
-    /* Check metadata properties first */
-    NetflixPrincipal grantor = findGrantorInMap(metadata.properties());
+  private static Set<NetflixPrincipal> findGrantors(Configuration conf, TableMetadata metadata) {
+    // Check metadata properties first
+    Set<NetflixPrincipal> grantors = findGrantors(metadata.properties());
 
-    /* No grantor in metadata try config */
-    if (grantor == null) {
-      grantor = findGrantorInMap(
-        GRANTORS.entrySet().stream()
-          .filter((e) -> conf.get(e.getKey()) != null)
-          .map((e) -> {
-            return Collections.singletonMap(e.getKey(), conf.get(e.getKey())).entrySet();
-          })
-          .flatMap(Collection::stream)
-          .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+    // No grantors in metadata try config
+    if (grantors.isEmpty()) {
+      grantors = findGrantors(
+        GRANTOR_TYPES.keySet().stream()
+                .filter(grantorType -> conf.get(grantorType) != null)
+                .collect(Collectors.toMap(x -> x, conf::get))
       );
     }
 
-    return grantor;
+    return grantors;
   }
 
-  private static NetflixPrincipal findGrantorInMap(Map<String, String> m) {
-    Set<NetflixPrincipal> grantors = GRANTORS.entrySet().stream()
-        .filter((e) -> m.containsKey(e.getKey()) && m.get(e.getKey()) != null)
-        .map((e) -> {
-            return new NetflixPrincipal(m.get(e.getKey()), e.getValue());
-        })
-        .collect(Collectors.toSet());
+  private static Set<NetflixPrincipal> findGrantors(Map<String, String> properties) {
+    return GRANTOR_TYPES.keySet().stream()
+            .filter(grantorType -> properties.containsKey(grantorType) && properties.get(grantorType) != null)
+            .flatMap(grantorType -> getAllNetflixPrincipal(properties.get(grantorType), grantorType))
+            .collect(Collectors.toSet());
+  }
 
-    switch (grantors.size()) {
-      case 0: return null;
-      case 1: return grantors.iterator().next();
-      default: throw new ValidationException("Only one grantor is permitted");
-    }
+  private static Stream<NetflixPrincipal> getAllNetflixPrincipal(String grantors, String grantorType) {
+    PrincipalType principalType = GRANTOR_TYPES.get(grantorType);
+    return Arrays.stream(grantors.split(",")).map(grantor -> new NetflixPrincipal(grantor.trim(), principalType));
   }
 
   /**
@@ -282,8 +273,8 @@ public class SecurityUtil {
    *
    *   grant.<privilege>.[user(s)|role(s)] = principal[,principal...]
    */
-  private static Map<Privilege, Set<NetflixPrincipal>> parseGrants(Configuration conf, Map<String, String> properties) {
-    return Stream.concat(properties.entrySet().stream(), StreamSupport.stream(conf.spliterator(), false))
+  private static Map<Privilege, Set<NetflixPrincipal>> findGrants(Configuration conf, TableMetadata tableMetadata) {
+    return Stream.concat(tableMetadata.properties().entrySet().stream(), StreamSupport.stream(conf.spliterator(), false))
         .filter((e) -> e.getKey().toUpperCase().startsWith("GRANT."))
         .map((e) -> {
           String [] parts = e.getKey().split("\\.");
