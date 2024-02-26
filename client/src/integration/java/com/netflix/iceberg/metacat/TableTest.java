@@ -10,17 +10,14 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
+import org.apache.iceberg.*;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
@@ -28,6 +25,7 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
+import org.junit.Assert;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -92,6 +90,55 @@ public class TableTest {
   public void testReadUnsecure() {
     TableIdentifier tableIdentifier = TableIdentifier.of(catalogName, "iceberg", "dual");
     printTable(catalog.loadTable(tableIdentifier));
+  }
+
+  /**
+   * Try to commit a branch to a table. Fail if branching is disabled in MetacatClientOps.java
+   * @throws IOException
+   */
+  @Test void testDisableBranching() throws IOException {
+    // Create a new table
+    Schema schema = new Schema(Types.NestedField.optional(1, "id", Types.LongType.get()));
+
+    Record record = GenericRecord.create(schema);
+    record.setField("id", 10L);
+
+    Table table = createTestTable(schema, PartitionSpec.unpartitioned());
+
+    String fileName = String.format("%s.parquet", UUID.randomUUID());
+    String dataLocation = table.locationProvider().newDataLocation(fileName);
+    OutputFile outputFile = table.io().newOutputFile(dataLocation);
+
+    FileAppender<Record> writer = Parquet.write(outputFile)
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .build();
+    try {
+      writer.add(record);
+    } finally {
+      writer.close();
+    }
+
+    DataFile dataFile = DataFiles.builder(PartitionSpec.unpartitioned())
+            .withInputFile(outputFile.toInputFile())
+            .withFileSizeInBytes(writer.length())
+            .withMetrics(writer.metrics())
+            .withSplitOffsets(writer.splitOffsets())
+            .build();
+
+    table.newOverwrite()
+            .overwriteByRowFilter(Expressions.alwaysTrue())  // Replace entire table
+            .addFile(dataFile)
+            .commit();
+    // Try to commit a fresh branch
+    boolean COMMIT_FAILED = false;
+    try{
+      table.manageSnapshots().createBranch("test", table.currentSnapshot().snapshotId()).commit();
+    } catch (Exception e){
+      e.printStackTrace();
+      COMMIT_FAILED = true;
+    }
+    Assert.assertTrue("Branch creation should be disabled", COMMIT_FAILED);
   }
 
   @Test

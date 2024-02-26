@@ -10,12 +10,7 @@ import com.netflix.metacat.client.Client;
 import com.netflix.metacat.common.QualifiedName;
 import com.netflix.metacat.common.dto.StorageDto;
 import com.netflix.metacat.common.dto.TableDto;
-import com.netflix.metacat.common.exception.MetacatAlreadyExistsException;
-import com.netflix.metacat.common.exception.MetacatBadRequestException;
-import com.netflix.metacat.common.exception.MetacatException;
-import com.netflix.metacat.common.exception.MetacatNotFoundException;
-import com.netflix.metacat.common.exception.MetacatPreconditionFailedException;
-import com.netflix.metacat.common.exception.MetacatUserMetadataException;
+import com.netflix.metacat.common.exception.*;
 import com.netflix.metacat.shaded.com.fasterxml.jackson.databind.node.ObjectNode;
 import com.netflix.nflxe2etokens.validation.common.E2eTokenConstants;
 import com.netflix.s3authsign.common.rest.RemoteSigningAccessDeniedException;
@@ -41,6 +36,7 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.LocationProviders;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
@@ -90,6 +86,8 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
       !(exc instanceof RemoteSigningAccessDeniedException) &&
       !(exc instanceof S3StsAccessDeniedException) &&
       !(exc instanceof NullPointerException);
+
+  private static final boolean METACAT_SUPPORTS_BRANCHING = false;
 
   private final Configuration conf;
   private final MetacatApi metacatApi;
@@ -268,6 +266,8 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
       }
     }
 
+    validateBranchingEnabled(metadata);
+
     if (secure) {
       SecurityUtil.validateSecureBuckets(metadata.location(), metadata.properties());
     }
@@ -413,6 +413,20 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
       if (commitStatus == FAILURE) {
         // if anything went wrong, clean up the uncommitted metadata file
         io().deleteFile(newMetadataLocation);
+      }
+    }
+  }
+
+  private void validateBranchingEnabled(TableMetadata metadata){
+    if (!METACAT_SUPPORTS_BRANCHING) {
+      failIfContainsBranches(metadata);
+    }
+  }
+
+  private void failIfContainsBranches(TableMetadata metadata) {
+    for (Map.Entry<String, SnapshotRef> snapshotRef : metadata.refs().entrySet() ){
+      if ( snapshotRef.getValue().isBranch() && !snapshotRef.getKey().equals("main") ){
+        throw new UnsupportedOperationException("Branching is not supported at the moment");
       }
     }
   }
