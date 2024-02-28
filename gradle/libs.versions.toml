@@ -78,9 +78,9 @@ metacat = "1.3.183"
 dse-metric = "1.8.0"
 bdp = "0.1.25"
 bdp-lineage-logging = "0.2.3"
-bdp-s3fs = "0.1.31"
+bdp-s3fs = "0.1.37"
 ksgateway = "0.0.4"
-netflix-spectator = "1.6.9"
+netflix-spectator = "1.7.3"
 
 [libraries]
 activation = { module = "javax.activation:activation", version.ref = "activation" }
@@ -178,7 +178,7 @@ metacat-netflix-client = { module = "com.netflix.metacat:metacat-netflix-client"
 dse-metric = { module = "netflix:dse-metric", version.ref = "dse-metric" }
 ksgateway-producer = { module = "com.netflix.ksgateway:ksgateway-producer", version.ref = "ksgateway" }
 netflix-spectator-ext-ipc = { module = "com.netflix.spectator:spectator-ext-ipc", version.ref = "netflix-spectator"}
-
+netflix-spectator-api = { module = "com.netflix.spectator:spectator-api", version.ref = "netflix-spectator" }
 
 # test libraries
 assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj-core" }

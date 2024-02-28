@@ -7,6 +7,16 @@ configurations {
   integrationImplementation.extendsFrom testImplementation
 }
 
+// Whether a dependency should be excluded from the shadow jar
+boolean shadowExclude(String name, String group) {
+  return [
+          "${libs.netflix.spectator.api.get().module}",
+          "${libs.slf4j.api.get().module}",
+  ].any { pattern ->
+    ("${group}:${name}" =~ pattern).matches()
+  }
+}
+
 shadowJar {
   relocationPrefix project.property('relocationPrefix')
   configurations = [project.configurations.shadow]
@@ -153,6 +163,10 @@ shadowJar {
 
   zip64 true
 
+  dependencies {
+    exclude dependency { shadowExclude(it.moduleName, it.moduleGroup) }
+  }
+
   // this contains a fake Level class that is only used for Level.INFO
   relocate 'org.apache.log4j', "${relocationPrefix}.org.apache.log4j"
   relocate 'com.google.common', "${relocationPrefix}.com.google.common"
@@ -198,7 +212,6 @@ shadowJar {
   relocate 'com.netflix.nflxe2etokens',"${relocationPrefix}.com.netflix.nflxe2etokens"
   relocate 'com.netflix.ksgateway', "${relocationPrefix}.com.netflix.ksgateway"
   relocate 'com.netflix.spectator.ipc', "${relocationPrefix}.com.netflix.spectator.ipc"
-  relocate 'com.netflix.spectator.impl', "${relocationPrefix}.com.netflix.spectator.impl"
 
   archiveClassifier = null
 }
@@ -223,3 +236,31 @@ task integrationTest(type: Test) {
 
 integrationTest.dependsOn shadowJar
 check.dependsOn integrationTest
+
+// remove everything from the module's effective POM
+// so that any modules depending on this module
+// only sees the shaded classes and not the dependencies
+afterEvaluate {
+  publishing {
+    publications {
+      withType(IvyPublication) {
+        descriptor.withXml {
+          asNode()
+                  .dependencies
+                  .dependency
+                  .findAll { !shadowExclude(it.@name, it.@group) }
+                  .each { it.parent().remove(it) }
+        }
+      }
+      withType(MavenPublication) {
+        pom.withXml {
+          asNode()
+                  .dependencies
+                  .dependency
+                  .findAll { !shadowExclude(it.artifactId.text(), it.groupId.text()) }
+                  .each { it.parent().remove(it) }
+        }
+      }
+    }
+  }
+}
