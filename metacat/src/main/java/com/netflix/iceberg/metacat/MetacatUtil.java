@@ -25,9 +25,8 @@ import com.netflix.metacat.common.dto.TableDto;
 import com.netflix.metacat.common.exception.MetacatNotFoundException;
 import com.netflix.metacat.shaded.feign.Request;
 import com.netflix.metacat.shaded.feign.Retryer;
-import com.netflix.spectator.api.Id;
-import com.netflix.spectator.api.Registry;
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -36,6 +35,10 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 public class MetacatUtil {
+
+  public static final String OWNER = "owner";
+  public static final String NETFLIX_OWNER = "netflix.owner";
+
   private MetacatUtil() {
   }
 
@@ -76,14 +79,25 @@ public class MetacatUtil {
   }
 
   public static String getUser(TableMetadata tableMetadata) {
+    if (tableMetadata != null) {
+      return getUser(tableMetadata.properties());
+    }
+    return getUser();
+  }
+
+  public static String getUser(Map<String, String> properties) {
     // https://jira.netflix.net/browse/DPS-1156
     // Look for the table owner in table metadata, if set. Else rely on the user set in env variables.
-    if (tableMetadata != null && tableMetadata.properties() != null
-            && tableMetadata.properties().containsKey("owner")) {
-      return tableMetadata.properties().get("owner");
-    } else {
-      return getUser();
+    if (properties != null) {
+      if (properties.containsKey(NETFLIX_OWNER)) {
+        return properties.get(NETFLIX_OWNER);
+      } else if (properties.containsKey(OWNER)) {
+        return properties.get(OWNER);
+      } else {
+        return getUser();
+      }
     }
+    return getUser();
   }
   /**
    * Sync the metacat URI between options and conf.

@@ -67,6 +67,8 @@ import software.amazon.awssdk.services.s3.S3Client;
 
 import static com.netflix.iceberg.metacat.DefinitionMetadata.SECURE_FLAG;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.LOAD_AUTH_ONLY_METADATA;
+import static com.netflix.iceberg.metacat.MetacatUtil.NETFLIX_OWNER;
+import static com.netflix.iceberg.metacat.MetacatUtil.OWNER;
 import static com.netflix.iceberg.metacat.NdcUtil.NDC_PROD_PREFIX;
 import static com.netflix.iceberg.metacat.NdcUtil.NDC_UPDATE_ENABLED_CONF;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CONF_EXPOSE_INTERNAL_STATES;
@@ -265,6 +267,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
 
   @Override
   public synchronized void doCommit(TableMetadata base, TableMetadata metadata) {
+    metadata = updateOwner(metadata);
     ObjectNode definitionMetadata = DefinitionMetadata.buildDefinitionMetadata(base, metadata);
 
     if (isCreateNewTable()) {
@@ -340,6 +343,8 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
       serde.setOutputFormat("org.apache.hadoop.mapred.FileOutputFormat");
       serde.setSerializationLib("org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe");
       serde.setUri(metadata.location());
+      // set the table owner from the current user
+      serde.setOwner(MetacatUtil.getUser(metadata));
 
       TableDto newTableInfo = new TableDto();
       newTableInfo.setName(QualifiedName.ofTable(catalog, database, table));
@@ -411,9 +416,6 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
             TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH),
             METADATA_LOCATION_PROP, newMetadataLocation
         ));
-
-        // set the table owner from the current user
-        newTableInfo.getSerde().setOwner(MetacatUtil.getUser(metadata));
         try {
           metacatApi.createTable(catalog, database, table, newTableInfo);
         } catch (MetacatAlreadyExistsException e) {
@@ -483,6 +485,14 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
 
   private TableMetadata updateSecureLocation(TableMetadata metadata) {
     metadata = SecurityUtil.updateLocation(conf, identifier, metadata);
+    return metadata;
+  }
+
+  private TableMetadata updateOwner(TableMetadata metadata) {
+    // Spark sets 'owner' to current user by default. Overriding it with 'netflix.owner'
+    if (metadata.properties().containsKey(OWNER)) {
+      return metadata.withAdditionalProperties(ImmutableMap.of(OWNER, MetacatUtil.getUser(metadata)));
+    }
     return metadata;
   }
 

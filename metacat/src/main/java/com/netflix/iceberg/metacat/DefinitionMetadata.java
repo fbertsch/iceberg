@@ -34,6 +34,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.MIGRATED_DATA_LOCATION;
+import static com.netflix.iceberg.metacat.MetacatUtil.NETFLIX_OWNER;
+import static com.netflix.iceberg.metacat.MetacatUtil.OWNER;
 
 class DefinitionMetadata {
   // security properties
@@ -176,12 +178,22 @@ class DefinitionMetadata {
 
   static ObjectNode buildDefinitionMetadata(TableMetadata base, TableMetadata current) {
     ObjectNode metadata = JsonNodeFactory.instance.objectNode();
+    addOwner(metadata, base, current);
     addDescription(metadata, base, current);
     addVTTSProperties(metadata, base, current);
     addJanitorProperties(metadata, base, current);
     addFlinkWatermarkProperties(metadata, base, current);
     addSecurityProperties(metadata, base, current);
     return metadata;
+  }
+
+  private static void addOwner(ObjectNode metadata, TableMetadata base, TableMetadata current) {
+    if (current.properties().containsKey(OWNER) || current.properties().containsKey(NETFLIX_OWNER)) {
+      metadata.set(
+              OWNER,
+              JsonNodeFactory.instance.objectNode().put("userId", MetacatUtil.getUser(current))
+      );
+    }
   }
 
   /**
@@ -244,7 +256,7 @@ class DefinitionMetadata {
       }
 
       dataDependency.put(VTTS_SECONDS, String.valueOf(timestampSeconds));
-      dataDependency.put(VTTS_UPDATE_USER, MetacatUtil.getUser(base));
+      dataDependency.put(VTTS_UPDATE_USER, MetacatUtil.getUser(current));
       dataDependency.put(VTTS_UPDATED_AT_SECONDS, System.currentTimeMillis() / 1_000);
     }
 
@@ -284,7 +296,7 @@ class DefinitionMetadata {
         }
       }
 
-      lifetime.put(USER, MetacatUtil.getUser(base));
+      lifetime.put(USER, MetacatUtil.getUser(current));
       metadata.put(LIFETIME, lifetime);
     }
 
