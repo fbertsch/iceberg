@@ -1,5 +1,5 @@
 jenkins:
-  label: jammy && ec2.region:us-west-2
+  label: detail:jammy-1 && ec2.region:us-west-2
 scm:
   checkout:
     prBuildMerge: true

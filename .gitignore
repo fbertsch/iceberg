@@ -73,3 +73,4 @@ python/pyiceberg/avro/decoder_fast.c
 python/pyiceberg/avro/*.html
 python/pyiceberg/avro/*.so
 
+pensive.log
