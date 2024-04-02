@@ -342,11 +342,11 @@ public class SecurityUtil {
       MetatronAuthContext context = MetatronAuthContextFactory.fromCertificate(certificate);
       switch (context.getAuthContextType()) {
         case USER:
-          return NetflixPrincipal.user(((MetatronUserAuthContext)context).getUsername());
+          return NetflixPrincipal.user(((MetatronUserAuthContext)context).getUserId());
         case APP:
           MetatronAppAuthContext appAuthContext =(MetatronAppAuthContext)context;
-          if (((MetatronAppAuthContext)context).getOriginUser() != null) {
-            return NetflixPrincipal.user(appAuthContext.getOriginUser());
+          if (((MetatronAppAuthContext)context).getOriginUserId() != null) {
+            return NetflixPrincipal.user(appAuthContext.getOriginUserId());
           } else {
             NetflixPrincipal appPrincipal = getPrincipalExtractor(conf).getPrincipal(new RequestIdentity(certToString(certificate)));
             Preconditions.checkArgument(appPrincipal.subjectJson().isPresent(), "Application principal has no not subjectJson");
