@@ -41,7 +41,10 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.LocationProviders;
+import org.apache.iceberg.NullOrder;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
@@ -56,6 +59,8 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.UnboundTerm;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -292,6 +297,11 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
     ObjectNode definitionMetadata = DefinitionMetadata.buildDefinitionMetadata(base, metadata);
 
     if (isCreateNewTable()) {
+      // If the table properties contain a sort order but the sortOrder field is unsorted, we copy over the sort order.
+      if (metadata.properties().containsKey("sort-order") && metadata.sortOrder().isUnsorted()) {
+        metadata = metadata.replaceSortOrder(sortOrderFromString(metadata.schema(), metadata.properties().get("sort-order")));
+      }
+      
       boolean localSecure = DefinitionMetadata.isSecure(definitionMetadata) || shouldCreateSecureTable();
       if (localSecure && conf.getBoolean("spark.netflix.secure-fileio-enabled", true)) {
         // If a table is being created, signal to the signing service
@@ -766,5 +776,71 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
         .withLogger(LOG)
         .withDescription(format, args)
         .build();
+  }
+
+  public static SortOrder sortOrderFromString(Schema schema, String sortOrderStr) {
+    String[] fieldOrders = sortOrderStr.split(",(?![^()]*\\))");
+    SortOrder.Builder builder = SortOrder.builderFor(schema);
+
+    for (String fieldOrder : fieldOrders) {
+      String transformStr;
+      String[] parts = fieldOrder.trim().split("\\s+(?![^()]*\\))");
+      UnboundTerm transform;
+      if (fieldOrder.contains("(") && fieldOrder.contains(")")) {
+        transformStr = parts[0];
+
+        String functionName = transformStr.substring(0, transformStr.indexOf("(")).trim();
+        String[] transformParts = transformStr.substring(transformStr.indexOf("(") + 1, transformStr.indexOf(")")).split(",");
+
+        String fieldName = transformParts[0].trim();
+        switch (functionName.toLowerCase()) {
+          case "bucket":
+            fieldName = transformParts[1].trim();
+            int numBuckets = Integer.parseInt(transformParts[0].trim());
+            transform = Expressions.bucket(fieldName, numBuckets);
+            break;
+          case "day":
+            transform = Expressions.day(fieldName);
+            break;
+          case "hour":
+            transform = Expressions.hour(fieldName);
+            break;
+          case "month":
+            transform = Expressions.month(fieldName);
+            break;
+          case "identity":
+            transform = Expressions.ref(fieldName);
+            break;
+          case "truncate":
+            fieldName = transformParts[1].trim();
+            int width = Integer.parseInt(transformParts[0].trim());
+            transform = Expressions.truncate(fieldName, width);
+            break;
+          case "year":
+            transform = Expressions.year(fieldName);
+            break;
+          default:
+            throw new IllegalArgumentException("Unsupported transform function: " + functionName);
+        }
+      } else {
+        transform = Expressions.ref(parts[0]);
+      }
+
+      if (parts[1].equalsIgnoreCase("ASC")) {
+        if (parts[3].equalsIgnoreCase("FIRST")) {
+          builder.asc(transform, NullOrder.NULLS_FIRST);
+        } else {
+          builder.asc(transform, NullOrder.NULLS_LAST);
+        }
+      } else if (parts[1].equalsIgnoreCase("DESC")) {
+        if (parts[3].equalsIgnoreCase("FIRST")) {
+          builder.desc(transform, NullOrder.NULLS_FIRST);
+        } else {
+          builder.desc(transform, NullOrder.NULLS_LAST);
+        }
+      }
+    }
+
+    return builder.build();
   }
 }
