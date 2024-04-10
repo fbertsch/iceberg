@@ -77,7 +77,9 @@ public class SecurityUtil {
   static final String SAVE_ACL_AS_ID = "netflix.warehouse.secure.save-acl-as-id";
   private static final ImmutableMap<String, PrincipalType> GRANTORS = ImmutableMap.of(
     "grantor.role", PrincipalType.GROUP,
+    "grantor.roles", PrincipalType.GROUP,
     "grantor.user", PrincipalType.USER,
+    "grantor.users", PrincipalType.USER,
     "grantor", PrincipalType.USER
   );
   public static final String SECURE_BUCKETS_PROPERTY = "secure-buckets";
