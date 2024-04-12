@@ -25,10 +25,13 @@ import com.netflix.metacat.common.dto.FieldDto;
 import com.netflix.metacat.common.dto.PartitionDto;
 import com.netflix.metacat.common.dto.StorageDto;
 import com.netflix.metacat.common.dto.TableDto;
+
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
@@ -352,6 +355,40 @@ public class MetacatSparkTable implements Table, SupportsRead, SupportsWrite {
         null /* sort by */, null /* sort order */,
         null /* start offset */, null /* limit */,
         true /* include metadata */);
+  }
+
+  /**
+   * Gets the list of all partitions in this table
+   * while paginating the results from metacat.
+   * Does not fetch any user-metadata.
+   *
+   * @return List of all partitions.
+   */
+  public List<PartitionDto> getAllPartitions() {
+    if (partitioning().length == 0) {
+      PartitionDto rootPartition = new PartitionDto();
+      rootPartition.setDataMetadata(table.getDataMetadata());
+      rootPartition.setSerde(table.getSerde());
+      return ImmutableList.of(rootPartition);
+    }
+
+    List<PartitionDto> allPartitions = new ArrayList<>();
+    int maxPageSize = 100000;
+    int offset = 0;
+    int pageSize;
+    do {
+      List<PartitionDto> partitions = client.getPartitionApi().getPartitions(
+        catalog, database, name, null /* no filter */,
+        null /* sort by */, null /* sort order */,
+        offset /* start offset */, maxPageSize /* limit */,
+        false /* include metadata */);
+      allPartitions.addAll(partitions);
+      pageSize = partitions.size();
+      LOG.info(String.format("Fetched page: [%d, %d]", offset, allPartitions.size()));
+      offset += pageSize;
+    } while (pageSize == maxPageSize);
+
+    return allPartitions;
   }
 
   public String provider() {
