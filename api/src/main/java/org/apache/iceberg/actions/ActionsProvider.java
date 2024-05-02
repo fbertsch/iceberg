@@ -20,6 +20,8 @@ package org.apache.iceberg.actions;
 
 import org.apache.iceberg.Table;
 
+import java.util.Map;
+
 /** An API that should be implemented by query engine integrations for providing actions. */
 public interface ActionsProvider {
 
@@ -69,5 +71,11 @@ public interface ActionsProvider {
   default RewritePositionDeleteFiles rewritePositionDeletes(Table table) {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement rewritePositionDeletes");
+  }
+
+  /** Instantiates an action to clone an existing table as a new Iceberg table. */
+  default NfCloneTable cloneTable(String sourceTableIdent, String cloneTableIdent, Map<String, String> additionalProperties, boolean includeSnapshots) {
+    throw new UnsupportedOperationException(
+            this.getClass().getName() + " does not implement cloneTable");
   }
 }

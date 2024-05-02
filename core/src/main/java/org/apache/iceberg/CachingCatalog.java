@@ -210,6 +210,11 @@ public class CachingCatalog implements Catalog {
     return table;
   }
 
+  @Override
+  public Table cloneTable(TableIdentifier sourceTableIdentifier, TableIdentifier cloneTableIdentifier, Map<String, String> properties, boolean includeSnapshots) {
+    return catalog.cloneTable(sourceTableIdentifier, cloneTableIdentifier, properties, includeSnapshots);
+  }
+
   private String fullTableName(TableIdentifier ident) {
     if (catalog instanceof BaseMetastoreCatalog) {
       return ((BaseMetastoreCatalog) catalog).fullTableName(catalog.name(), ident);

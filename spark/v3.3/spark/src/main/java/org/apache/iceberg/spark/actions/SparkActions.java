@@ -20,10 +20,13 @@ package org.apache.iceberg.spark.actions;
 
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ActionsProvider;
+import org.apache.iceberg.actions.SnapshotTable;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
+
+import java.util.Map;
 
 /**
  * An implementation of {@link ActionsProvider} for Spark.
@@ -95,5 +98,10 @@ public class SparkActions implements ActionsProvider {
   @Override
   public RewritePositionDeleteFilesSparkAction rewritePositionDeletes(Table table) {
     return new RewritePositionDeleteFilesSparkAction(spark, table);
+  }
+
+  @Override
+  public NfCloneTableSparkAction cloneTable(String sourceTableIdent, String cloneTableIdent, Map<String, String> additionalProperties, boolean includeSnapshots) {
+    return new NfCloneTableSparkAction(spark, sourceTableIdent, cloneTableIdent,  additionalProperties, includeSnapshots);
   }
 }
