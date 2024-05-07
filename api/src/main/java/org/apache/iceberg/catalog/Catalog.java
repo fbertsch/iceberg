@@ -359,6 +359,13 @@ public interface Catalog {
         this.getClass().getName() + " does not implement buildTable");
   }
 
+  /** Calls Metacat Clone API to clone an existing table as a new Iceberg table. */
+  default Table cloneTable(TableIdentifier sourceTableIdentifier, TableIdentifier cloneTableIdentifier,
+                           Map<String, String> properties, boolean includeSnapshots) {
+    throw new UnsupportedOperationException(
+            this.getClass().getName() + " does not implement cloneTable");
+  }
+
   /**
    * Initialize a catalog given a custom name and a map of catalog properties.
    *

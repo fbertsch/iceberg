@@ -7,17 +7,13 @@ import com.netflix.metacat.common.dto.DatabaseCreateRequestDto;
 import com.netflix.metacat.common.dto.DatabaseDto;
 import com.netflix.metacat.common.exception.MetacatAlreadyExistsException;
 import com.netflix.metacat.common.exception.MetacatNotFoundException;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.PartitionSpec;
@@ -37,6 +33,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class MetacatIcebergCatalog extends BaseMetastoreCatalog implements SupportsNamespaces {
   public static final String MIGRATED_DATA_LOCATION = "migrated_data_location";
+  public static final String CLONE_TABLE_SOURCE = "clone_table_source";
+  public static final String CLONE_TABLE_WITH_SNAPSHOTS = "clone_table_source_snapshots";
   public static final String CONF_EXPOSE_INTERNAL_STATES = "netflix.iceberg.expose-internal-states-as-properties";
   public static final String CONF_INCLUDE_STS_CREDS_PROPS = "netflix.secure.include-sts-creds";
   public static final String LOAD_AUTH_ONLY_METADATA = "netflix.secure.load-auth-only-metadata";
@@ -44,7 +42,10 @@ public class MetacatIcebergCatalog extends BaseMetastoreCatalog implements Suppo
   public static final String INTERNAL_PROP_METADATA_LOC = INTERNAL_PROP_PREFIX + "metadata_location";
   public static final String INTERNAL_PROP_AUTH_POLICY = INTERNAL_PROP_PREFIX + "auth_policy";
   public static final String INTERNAL_PROP_MIGRATED_DATA_LOCATION = INTERNAL_PROP_PREFIX + MIGRATED_DATA_LOCATION;
-
+  public static final String ROOT_TABLE_NAME = "root_table_name";
+  public static final String INTERNAL_PROP_ROOT_TABLE_NAME = INTERNAL_PROP_PREFIX + ROOT_TABLE_NAME;
+  public static final String ROOT_TABLE_UUID = "root_table_uuid";
+  public static final String INTERNAL_PROP_ROOT_TABLE_UUID = INTERNAL_PROP_PREFIX + ROOT_TABLE_UUID;
 
   private static volatile boolean initialized = false;
 
@@ -116,6 +117,42 @@ public class MetacatIcebergCatalog extends BaseMetastoreCatalog implements Suppo
     }
 
     return super.createTable(identifier, schema, spec, propertiesBuilder.build());
+  }
+
+  /**
+   * Clone a table from a source table.
+   * @param sourceTableIdentifier The source table.
+   * @param cloneTableIdentifier The clone table.
+   * @param properties Any additional properties that need to be included in the clone Table
+   * @param includeSnapshots Whether snapshots from the source table should be included.                   
+   * @return The cloned table
+   */
+  public Table cloneTable(TableIdentifier sourceTableIdentifier, TableIdentifier cloneTableIdentifier,
+                          Map<String, String> properties, boolean includeSnapshots) {
+    if (!isValidIdentifier(cloneTableIdentifier)) {
+      throw new NoSuchTableException("Identifiers must be catalog.database.table: %s", cloneTableIdentifier);
+    }
+
+    Client metacatClient = newClient();
+    if (!MetacatUtil.doesTableExist(metacatClient, sourceTableIdentifier)) {
+      throw new NoSuchTableException("Table does not exist: %s", sourceTableIdentifier);
+    }
+    if (MetacatUtil.doesTableExist(metacatClient, cloneTableIdentifier)) {
+      throw new AlreadyExistsException("Table already exists: %s", cloneTableIdentifier);
+    }
+
+    // Set up the properties that would go into the cloneTableIdentifier
+    Table sourceTable = loadTable(sourceTableIdentifier);
+    ImmutableMap.Builder<String, String> propertiesBuilder = ImmutableMap.builder();
+    propertiesBuilder.putAll(sourceTable.properties());
+    propertiesBuilder.putAll(properties);
+    propertiesBuilder.put(CLONE_TABLE_SOURCE, sourceTable.name());
+    propertiesBuilder.put(CLONE_TABLE_WITH_SNAPSHOTS, Boolean.toString(includeSnapshots));
+    propertiesBuilder.put("secure", "true");
+    Map<String, String> newProperties = propertiesBuilder.build();
+    System.out.println("new Properties" + newProperties);
+
+    return createTable(cloneTableIdentifier, sourceTable.schema(), sourceTable.spec(), propertiesBuilder.build());
   }
 
   @Override

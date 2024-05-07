@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
@@ -134,6 +135,17 @@ public class MetacatUtil {
     try {
       client.getApi().deleteTable(catalog, database, tableName);
       return true;
+    } catch (MetacatNotFoundException e) {
+      return false;
+    }
+  }
+
+  public static boolean doesTableExist(Client client, TableIdentifier tableIdentifier) {
+    String catalog = tableIdentifier.namespace().level(0);
+    String database = tableIdentifier.namespace().level(1);
+    String table = tableIdentifier.name();
+    try {
+      return client.getApi().doesTableExist(catalog, database, table);
     } catch (MetacatNotFoundException e) {
       return false;
     }

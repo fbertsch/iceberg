@@ -143,6 +143,13 @@ class DefinitionMetadata {
     return null;
   }
 
+  public static String getAsText(ObjectNode definitionMetadata, String field) {
+    if (definitionMetadata.hasNonNull(field)) {
+      return definitionMetadata.get(field).asText();
+    }
+    return null;
+  }
+
   static boolean isReservedProperty(String property) {
     return RESERVED_PROPERTIES.contains(property);
   }

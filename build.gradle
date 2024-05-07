@@ -263,6 +263,7 @@ project(':iceberg-api') {
   }
 
   tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
+  tasks.processTestResources.mustRunAfter rootProject.tasks.writeVersionFiles
 
   // Workaround to prevent:
   // Task ':iceberg-api:processTestResources' uses this output of task

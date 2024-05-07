@@ -410,4 +410,16 @@ public class SecurityUtil {
     return "";
   }
 
+  public static void replaceAclUUIDAndDB(Set<Acl> acls, String uuid, String dbName) {
+    acls.forEach(acl -> {
+      acl.resources().forEach(resource -> {
+        if (resource instanceof Table) {
+          ((Table) resource).uuid(uuid);
+        }
+        if (resource.parent() instanceof Schema) {
+          resource.parent().resourceName(dbName);
+        }
+      });
+    });
+  }
 }

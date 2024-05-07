@@ -1,11 +1,15 @@
 package com.netflix.iceberg.metacat;
 
+import com.netflix.bdp.security.authorization.Acl;
+import com.netflix.bdp.security.authorization.AclJsonParser;
 import com.netflix.bdp.security.authorization.AuthPolicy;
 import com.netflix.iceberg.security.MixedFileIO;
 import com.netflix.iceberg.security.S3AuthStrategy;
 import com.netflix.iceberg.security.SecurityContext;
 import com.netflix.iceberg.security.SecurityUtil;
 import com.netflix.iceberg.security.SimpleStsRefresher;
+import com.netflix.iceberg.security.TableAuthMetadata;
+import com.netflix.iceberg.security.TableAuthMetadataParser;
 import com.netflix.metacat.client.Client;
 import com.netflix.metacat.common.QualifiedName;
 import com.netflix.metacat.common.dto.StorageDto;
@@ -30,10 +34,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.LocationProviders;
@@ -46,6 +50,7 @@ import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
@@ -54,8 +59,6 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
-import com.netflix.iceberg.security.TableAuthMetadata;
-import com.netflix.iceberg.security.TableAuthMetadataParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -66,16 +69,19 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import static com.netflix.iceberg.metacat.DefinitionMetadata.SECURE_FLAG;
-import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.LOAD_AUTH_ONLY_METADATA;
-import static com.netflix.iceberg.metacat.MetacatUtil.NETFLIX_OWNER;
-import static com.netflix.iceberg.metacat.MetacatUtil.OWNER;
-import static com.netflix.iceberg.metacat.NdcUtil.NDC_PROD_PREFIX;
-import static com.netflix.iceberg.metacat.NdcUtil.NDC_UPDATE_ENABLED_CONF;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CONF_EXPOSE_INTERNAL_STATES;
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CONF_INCLUDE_STS_CREDS_PROPS;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_AUTH_POLICY;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_METADATA_LOC;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_MIGRATED_DATA_LOCATION;
-import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CONF_INCLUDE_STS_CREDS_PROPS;
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_ROOT_TABLE_NAME;
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_ROOT_TABLE_UUID;
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.LOAD_AUTH_ONLY_METADATA;
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.ROOT_TABLE_NAME;
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.ROOT_TABLE_UUID;
+import static com.netflix.iceberg.metacat.MetacatUtil.OWNER;
+import static com.netflix.iceberg.metacat.NdcUtil.NDC_PROD_PREFIX;
+import static com.netflix.iceberg.metacat.NdcUtil.NDC_UPDATE_ENABLED_CONF;
 import static com.netflix.iceberg.security.IcebergAclStorage.ACL_PROPERTY_KEY;
 import static com.netflix.iceberg.security.SecurityUtil.SIGNER_DEFAULT_APP_NAME;
 import static com.netflix.iceberg.security.SecurityUtil.getSignerHost;
@@ -83,6 +89,7 @@ import static java.lang.String.format;
 import static org.apache.iceberg.BaseMetastoreTableOperations.CommitStatus.FAILURE;
 import static org.apache.iceberg.BaseMetastoreTableOperations.CommitStatus.SUCCESS;
 import static org.apache.iceberg.TableProperties.CLEANUP_METADATA_ON_COMMIT_FAILURE;
+import static org.apache.iceberg.TableProperties.WRITE_METADATA_LOCATION;
 
 class MetacatClientOps extends BaseMetastoreTableOperations {
 
@@ -99,6 +106,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
   private final Configuration conf;
   private final MetacatApi metacatApi;
   private final TableIdentifier identifier;
+  private final Client metacatClient;
   private final String catalog;
   private final String database;
   private final String table;
@@ -116,6 +124,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
         .withMetacatV1(client.getApi())
         .withIpcLogger(new IpcLogger(Spectator.globalRegistry(), LOG))
         .build();
+    this.metacatClient = client;
     this.identifier = identifier;
     this.catalog = identifier.namespace().level(0);
     this.database = identifier.namespace().level(1);
@@ -204,6 +213,17 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
           String migratedDataLoc = DefinitionMetadata.getMigratedDataLoc(tableInfo.getDefinitionMetadata());
           if(migratedDataLoc != null) {
             builder.put(INTERNAL_PROP_MIGRATED_DATA_LOCATION, migratedDataLoc);
+          }
+
+          // Expose root table name and uuid of table clones
+          String rootTableName = DefinitionMetadata.getAsText(tableInfo.getDefinitionMetadata(), ROOT_TABLE_NAME);
+          if(rootTableName != null) {
+            builder.put(INTERNAL_PROP_ROOT_TABLE_NAME, rootTableName);
+          }
+
+          String rootTableUuid = DefinitionMetadata.getAsText(tableInfo.getDefinitionMetadata(), ROOT_TABLE_UUID);
+          if(rootTableUuid != null) {
+            builder.put(INTERNAL_PROP_ROOT_TABLE_UUID, rootTableUuid);
           }
 
           finalProperties.putAll(builder.build());
@@ -309,6 +329,38 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
 
     if (secure) {
       SecurityUtil.validateSecureBuckets(metadata.location(), metadata.properties());
+    }
+
+    if(metadata.properties().containsKey(MetacatIcebergCatalog.CLONE_TABLE_SOURCE)) {
+      String sourceName =  metadata.properties().get(MetacatIcebergCatalog.CLONE_TABLE_SOURCE);
+      String[] sourceNames = sourceName.split("\\.");
+      Preconditions.checkArgument(sourceNames.length == 3, "Invalid source table name: " + sourceName);
+
+      TableDto sourceTableInfo = MetacatUtil.getIcebergTable(metacatApi, sourceNames[0], sourceNames[1], sourceNames[2]);
+      Map<String, String> tableProperties = sourceTableInfo.getMetadata();
+      String tableType = tableProperties.get(TABLE_TYPE_PROP);
+
+      NoSuchIcebergTableException.check(
+              ICEBERG_TABLE_TYPE_VALUE.equalsIgnoreCase(tableType),
+              "Entity %s.%s.%s exists but not an Iceberg table, tableType: %s",
+              catalog, database, table, tableType);
+
+      if (!DefinitionMetadata.isSecure(sourceTableInfo.getDefinitionMetadata())) {
+        throw new BadRequestException("Clone table is only supported for secure tables. Source table: %s",
+                sourceName);
+      }
+
+      String sourceMetadataLocation = tableProperties.get(METADATA_LOCATION_PROP);
+      NoSuchIcebergTableException.check(sourceMetadataLocation != null,
+              "Invalid table, missing metadata_location: %s.%s.%s", sourceNames[0], sourceNames[1], sourceNames[2]);
+      Map<String, String> reserved = DefinitionMetadata.reservedProperties(sourceTableInfo.getDefinitionMetadata());
+      MetacatClientOps sourceTableOps = new MetacatClientOps(conf, metacatClient, TableIdentifier.parse(sourceName));
+      TableMetadata sourceMetadata = TableMetadataParser.read(sourceTableOps.io(), sourceMetadataLocation)
+              .withAdditionalProperties(reserved);
+      definitionMetadata.put(ROOT_TABLE_NAME, sourceName);
+      definitionMetadata.put(ROOT_TABLE_UUID, sourceMetadata.uuid());
+
+      metadata = mergeMetadataForCloneTable(metadata, sourceMetadata);
     }
 
     Map<String, String> props = metadata.properties();
@@ -467,6 +519,54 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
         throw new UnsupportedOperationException("Branching is not supported at the moment");
       }
     }
+  }
+
+  private String createCloneTableACLs(TableMetadata metadata, String sourceTableACLs) {
+    // Fix the UUID and DBName to match that of the clone Table
+    String cloneDbName = database;
+    String cloneTableUUID = metadata.uuid();
+    Set<Acl> sourceACLs = AclJsonParser.fromJson(sourceTableACLs);
+    SecurityUtil.replaceAclUUIDAndDB(sourceACLs, cloneDbName, cloneTableUUID);
+    // merge in the ACLs from the clone table
+    // TODO: Ensure principal here is part of source table ACL.
+    if (metadata.properties().containsKey(ACL_PROPERTY_KEY)) {
+      sourceACLs.addAll(AclJsonParser.fromJson(metadata.properties().get(ACL_PROPERTY_KEY)));
+    }
+    return AclJsonParser.toJson(sourceACLs);
+  }
+
+  /**
+   * Merge clone and source table metadata.
+   * @param metadata
+   * @param src
+   * @return
+   */
+  private TableMetadata mergeMetadataForCloneTable(TableMetadata metadata, TableMetadata src) {
+    Map<String, String> srcProps = new HashMap(src.properties());
+
+    // Remove this so that new metadata won't be written to old location
+    srcProps.remove(WRITE_METADATA_LOCATION);
+    srcProps.put(ACL_PROPERTY_KEY, createCloneTableACLs(metadata, srcProps.get(ACL_PROPERTY_KEY)));
+
+    Map<String, String> finalProps = ImmutableMap.copyOf(srcProps);
+
+    boolean includeSnapshots = Boolean.parseBoolean(metadata.properties()
+            .getOrDefault(MetacatIcebergCatalog.CLONE_TABLE_WITH_SNAPSHOTS, "false"));
+    if (includeSnapshots) {
+      return TableMetadata.buildFrom(src)
+              .withMetadataLocation(metadata.metadataFileLocation())
+              .setLocation(metadata.location())
+              .assignUUID(metadata.uuid())
+              .setProperties(finalProps)
+              .build();
+    }
+    return TableMetadata.buildFrom(src)
+            .withMetadataLocation(metadata.metadataFileLocation())
+            .setLocation(metadata.location())
+            .assignUUID(metadata.uuid())
+            .setProperties(finalProps)
+            .removeSnapshots(src.snapshots())
+            .build();
   }
 
   private static void ensureNoLocationUpdate(TableMetadata base, TableMetadata metadata) {
