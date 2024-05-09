@@ -20,20 +20,29 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.TableProperties.CURRENT_SNAPSHOT_ID;
 import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
+import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.alwaysFalse;
+import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.or;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFiles;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.PositionDeletesTable;
+import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
@@ -48,6 +57,7 @@ import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
+import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -64,7 +74,12 @@ import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.analysis.NoSuchPartitionException;
+import org.apache.spark.sql.catalyst.analysis.PartitionsAlreadyExistException;
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.connector.catalog.MetadataColumn;
+import org.apache.spark.sql.connector.catalog.SupportsAtomicPartitionManagement;
 import org.apache.spark.sql.connector.catalog.SupportsDelete;
 import org.apache.spark.sql.connector.catalog.SupportsMetadataColumns;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
@@ -82,6 +97,7 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.apache.spark.unsafe.types.UTF8String;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -91,7 +107,8 @@ public class SparkTable
         SupportsWrite,
         SupportsDelete,
         SupportsRowLevelOperations,
-        SupportsMetadataColumns {
+        SupportsMetadataColumns,
+        SupportsAtomicPartitionManagement {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkTable.class);
 
@@ -314,7 +331,7 @@ public class SparkTable
     for (Filter filter : filters) {
       Expression expr = SparkFilters.convert(filter);
       if (expr != null) {
-        deleteExpr = Expressions.and(deleteExpr, expr);
+        deleteExpr = and(deleteExpr, expr);
       } else {
         return false;
       }
@@ -368,32 +385,44 @@ public class SparkTable
     }
   }
 
-  @Override
-  public void deleteWhere(Filter[] filters) {
-    Expression deleteExpr = SparkFilters.convert(filters);
+  public void deleteWhere(Expression deleteExpr) {
+    DeleteFiles deleteFiles = icebergTable.newDelete()
+            .set("spark.app.id", sparkSession().sparkContext().applicationId())
+            .deleteFromRowFilter(deleteExpr);
 
-    if (deleteExpr == Expressions.alwaysFalse()) {
+    String genieId = sparkSession().sparkContext().hadoopConfiguration().get("genie.job.id");
+    if (genieId != null) {
+        deleteFiles.set("genie-id", genieId);
+    }
+
+    if (deleteExpr == alwaysFalse()) {
       LOG.info("Skipping the delete operation as the condition is always false");
       return;
     }
 
-    DeleteFiles deleteFiles =
-        icebergTable
-            .newDelete()
-            .set("spark.app.id", sparkSession().sparkContext().applicationId())
-            .deleteFromRowFilter(deleteExpr);
-
     if (SparkTableUtil.wapEnabled(table())) {
-      branch = SparkTableUtil.determineWriteBranch(sparkSession(), branch);
+        branch = SparkTableUtil.determineWriteBranch(sparkSession(), branch);
     }
 
     if (branch != null) {
-      deleteFiles.toBranch(branch);
+        deleteFiles.toBranch(branch);
     }
     if (!CommitMetadata.commitProperties().isEmpty()) {
-      CommitMetadata.commitProperties().forEach(deleteFiles::set);
+        CommitMetadata.commitProperties().forEach(deleteFiles::set);
     }
-    deleteFiles.commit();
+
+    try {
+        deleteFiles.commit();
+    } catch (ValidationException e) {
+      throw new IllegalArgumentException("Failed to cleanly delete data files matching: " + deleteExpr, e);
+    }
+  }
+
+  @Override
+  public void deleteWhere(Filter[] filters) {
+    Expression deleteExpr = SparkFilters.convert(filters);
+    // The delete code is removed to a separate function
+    deleteWhere(deleteExpr);
   }
 
   @Override
@@ -441,5 +470,65 @@ public class SparkTable
     }
 
     return options;
+  }
+
+  @Override
+  public void createPartitions(InternalRow[] internalRows, Map<String, String>[] maps) throws
+      PartitionsAlreadyExistException, UnsupportedOperationException {
+    throw new UnsupportedOperationException();
+  }
+
+  private Expression getFilterExpression(InternalRow[] idents) {
+    List<PartitionField> partitionFieldList = icebergTable.spec().fields();
+    List<String> partitionKeys = new ArrayList<>();
+    for (PartitionField pField : partitionFieldList) {
+      partitionKeys.add(pField.name());
+    }
+
+    Expression partitionFilter = alwaysFalse();
+    for (InternalRow ident : idents) {
+      Expression innerPartitionFilter = alwaysTrue();
+      for (int i = 0; i < partitionKeys.size(); i++) {
+        Object val = ((GenericInternalRow) ident).genericGet(i);
+        UnboundPredicate<?> equalPredicate = null;
+        if (val instanceof UTF8String) {
+          equalPredicate = equal(partitionKeys.get(i), val.toString());
+        } else {
+          equalPredicate = equal(partitionKeys.get(i), val);
+        }
+        innerPartitionFilter = and(innerPartitionFilter, equalPredicate);
+      }
+      partitionFilter = or(partitionFilter, innerPartitionFilter);
+    }
+
+    return partitionFilter;
+  }
+
+  @Override
+  public boolean dropPartitions(InternalRow[] internalRows) {
+    Expression deleteExpr = getFilterExpression(internalRows);
+    deleteWhere(deleteExpr);
+    return true;
+  }
+
+  @Override
+  public StructType partitionSchema() {
+    return (StructType) SparkSchemaUtil.convert(icebergTable.spec().partitionType());
+  }
+
+  @Override
+  public void replacePartitionMetadata(InternalRow internalRow, Map<String, String> map) throws
+      NoSuchPartitionException, UnsupportedOperationException {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public Map<String, String> loadPartitionMetadata(InternalRow internalRow) throws UnsupportedOperationException {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public InternalRow[] listPartitionIdentifiers(String[] strings, InternalRow internalRow) {
+    return new InternalRow[]{internalRow};
   }
 }
