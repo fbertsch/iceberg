@@ -36,6 +36,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -43,8 +44,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.parser.ParserInterface;
+import org.apache.spark.sql.connector.catalog.SupportsAtomicPartitionManagement;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
 import org.apache.spark.sql.connector.catalog.SupportsWrite;
 import org.apache.spark.sql.connector.catalog.Table;
@@ -63,12 +67,17 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.iceberg.expressions.Expressions.alwaysFalse;
+import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
+import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.spark.sql.connector.catalog.TableCapability.BATCH_READ;
 import static org.apache.spark.sql.connector.catalog.TableCapability.BATCH_WRITE;
 import static org.apache.spark.sql.connector.catalog.TableCapability.OVERWRITE_DYNAMIC;
 import static org.apache.spark.sql.connector.catalog.TableCapability.TRUNCATE;
 
-public class MetacatSparkTable implements Table, SupportsRead, SupportsWrite {
+public class MetacatSparkTable implements Table, SupportsRead, SupportsWrite, SupportsAtomicPartitionManagement {
   private static final Logger LOG = LoggerFactory.getLogger(MetacatSparkTable.class);
   private static final Set<TableCapability> CAPABILITIES = Sets.newHashSet(
       BATCH_READ, BATCH_WRITE, OVERWRITE_DYNAMIC);
@@ -337,6 +346,21 @@ public class MetacatSparkTable implements Table, SupportsRead, SupportsWrite {
     return lazyPartitionSchema;
   }
 
+  @Override
+  public void replacePartitionMetadata(InternalRow internalRow, Map<String, String> map) throws UnsupportedOperationException {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public Map<String, String> loadPartitionMetadata(InternalRow internalRow) throws UnsupportedOperationException {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public InternalRow[] listPartitionIdentifiers(String[] strings, InternalRow internalRow) {
+    return new InternalRow[]{internalRow};
+  }
+
   public TableDto info() {
     return table;
   }
@@ -448,5 +472,51 @@ public class MetacatSparkTable implements Table, SupportsRead, SupportsWrite {
     }
 
     return partitionColumns;
+  }
+
+  @Override
+  public void createPartitions(InternalRow[] internalRows, Map<String, String>[] maps) throws UnsupportedOperationException {
+    throw new UnsupportedOperationException();
+  }
+
+  private List<PartitionDto> getFilteredPartitions(InternalRow[] idents) {
+    List<String> partitionKeys = table.getPartition_keys();
+    Expression partitionFilter = alwaysFalse();
+    for (InternalRow ident : idents) {
+      Expression innerPartitionFilter = alwaysTrue();
+      for (int i = 0; i < partitionKeys.size(); i++) {
+        innerPartitionFilter = and(innerPartitionFilter, equal(partitionKeys.get(i),
+                (((GenericInternalRow) ident).values()[i]).toString()));
+      }
+      partitionFilter = or(partitionFilter, innerPartitionFilter);
+    }
+
+    List<PartitionDto> partitionDtoList = partitions(partitionFilter);
+    Preconditions.checkArgument(partitionDtoList.size() <= idents.length,
+            "There should be %s partitions matching the filter condition", idents.length);
+
+    return partitionDtoList;
+  }
+
+  @Override
+  public boolean dropPartition(InternalRow ident) {
+    dropPartitions(new InternalRow[]{ident});
+    return true;
+  }
+
+  @Override
+  public boolean dropPartitions(InternalRow[] internalRows) {
+    List<PartitionDto> partitionDtoList = getFilteredPartitions(internalRows);
+    if(partitionDtoList.size() < internalRows.length) {
+      return false;
+    }
+
+    List<String> partitionNames = new ArrayList<>();
+    for (PartitionDto pdto : partitionDtoList) {
+      partitionNames.add(pdto.getName().getPartitionName());
+    }
+
+    client.getPartitionApi().deletePartitions(catalog, database, name, partitionNames);
+    return true;
   }
 }
