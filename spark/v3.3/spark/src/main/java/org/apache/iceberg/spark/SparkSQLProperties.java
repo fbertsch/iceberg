@@ -56,6 +56,11 @@ public class SparkSQLProperties {
   // Controls write distribution mode
   public static final String DISTRIBUTION_MODE = "spark.sql.iceberg.distribution-mode";
 
+  // Controls the new default Spark write distribution mode changes for Spark 3.3 and Iceberg 1.2.x
+  // Upstream PR : https://github.com/apache/iceberg/pull/6828
+  public static final String USE_DEFAULT_DISTRIBUTION_MODE_CHANGE =
+          "spark.sql.iceberg.netflix.use-iceberg-12-default-write-distribution";
+
   // Controls the WAP ID used for write-audit-publish workflow.
   // When set, new snapshots will be staged with this ID in snapshot summary.
   public static final String WAP_ID = "spark.wap.id";

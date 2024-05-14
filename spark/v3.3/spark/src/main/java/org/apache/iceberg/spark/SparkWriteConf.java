@@ -243,8 +243,19 @@ public class SparkWriteConf {
       DistributionMode mode = DistributionMode.fromName(modeName);
       return adjustWriteDistributionMode(mode);
     } else {
+      if (!useIceberg12DefaultDistributionModeChange()) {
+        return table.sortOrder().isSorted() ? RANGE : NONE;
+      }
       return defaultWriteDistributionMode();
     }
+  }
+
+  private boolean useIceberg12DefaultDistributionModeChange(){
+    return confParser
+            .booleanConf()
+            .option(SparkSQLProperties.USE_DEFAULT_DISTRIBUTION_MODE_CHANGE)
+            .defaultValue(true)
+            .parse();
   }
 
   private DistributionMode adjustWriteDistributionMode(DistributionMode mode) {
@@ -304,7 +315,7 @@ public class SparkWriteConf {
       DistributionMode mergeMode = DistributionMode.fromName(mergeModeName);
       return adjustWriteDistributionMode(mergeMode);
 
-    } else if (table.spec().isPartitioned()) {
+    } else if (table.spec().isPartitioned() && useIceberg12DefaultDistributionModeChange()) {
       return HASH;
 
     } else {
