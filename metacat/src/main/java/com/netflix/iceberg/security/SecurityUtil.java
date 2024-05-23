@@ -3,6 +3,7 @@ package com.netflix.iceberg.security;
 import com.netflix.bdp.security.authentication.PrincipalExtractor;
 import com.netflix.bdp.security.authentication.RequestIdentity;
 import com.netflix.bdp.security.authorization.Acl;
+import com.netflix.bdp.security.authorization.AclJsonParser;
 import com.netflix.bdp.security.authorization.AclUtils;
 import com.netflix.bdp.security.authorization.AuthPolicy;
 import com.netflix.bdp.security.authorization.MembershipChecker;
@@ -10,6 +11,7 @@ import com.netflix.bdp.security.authorization.Privilege;
 import com.netflix.bdp.security.authorization.principal.NetflixPrincipal;
 import com.netflix.bdp.security.authorization.principal.NetflixPrincipal.PrincipalType;
 import com.netflix.bdp.security.authorization.resource.Catalog;
+import com.netflix.bdp.security.authorization.resource.Resource;
 import com.netflix.bdp.security.authorization.resource.Schema;
 import com.netflix.bdp.security.authorization.resource.Table;
 import com.netflix.metatron.ipc.MetatronKeyStores;
@@ -30,6 +32,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -187,26 +190,9 @@ public class SecurityUtil {
       return metadata;
     }
 
-    String catalog = identifier.namespace().level(0);
-    String database = identifier.namespace().level(1);
-    String table = identifier.name();
-
-    Table resource = new Table(new Schema(new Catalog(catalog), database), table, metadata.uuid());
-
+    Table resource = getTableResource(identifier, metadata);
     final NetflixPrincipal localPrincipal = resolveLocalPrincipal(conf);
-
-    // Handle Grants
-    Map<Privilege, Set<NetflixPrincipal>> grants = findGrants(conf, metadata);
-    Set<Acl> acls = grants.entrySet().stream()
-            .map(e -> new Acl(e.getValue(), singleton(e.getKey()), singleton(resource), localPrincipal, false))
-            .collect(Collectors.toSet());
-
-    // Handle Grantors
-    Set<NetflixPrincipal> grantors = findGrantors(conf, metadata);
-    // Explicitly add ALL privilege for grantors
-    if(!grantors.isEmpty()) {
-      acls.add(new Acl(grantors, singleton(Privilege.ALL), singleton(resource), localPrincipal, true ));
-    }
+    Set<Acl> acls = getAclsFromTablePropertiesAndConf(conf, metadata, resource, localPrincipal);
 
     // No explicit grants set from conf and properties
     if (acls.isEmpty()) {
@@ -238,6 +224,101 @@ public class SecurityUtil {
     newProperties.put(ACL_PROPERTY_KEY, toJson(acls));
 
     return metadata.replaceProperties(newProperties);
+  }
+
+  private static Table getTableResource(TableIdentifier identifier, TableMetadata metadata) {
+    String catalog = identifier.namespace().level(0);
+    String database = identifier.namespace().level(1);
+    String table = identifier.name();
+
+    return new Table(new Schema(new Catalog(catalog), database), table, metadata.uuid());
+  }
+
+  public static Set<Acl> getAclsFromTablePropertiesAndConf(
+          Configuration conf,
+          TableMetadata metadata,
+          Table resource,
+          NetflixPrincipal localPrincipal) {
+    // Handle Grants
+    Map<Privilege, Set<NetflixPrincipal>> grants = findGrants(conf, metadata);
+    Set<Acl> acls = grants.entrySet().stream()
+            .map(e -> new Acl(e.getValue(), singleton(e.getKey()), singleton(resource), localPrincipal, false))
+            .collect(Collectors.toSet());
+
+    // Handle Grantors
+    Set<NetflixPrincipal> grantors = findGrantors(conf, metadata);
+    // Explicitly add ALL privilege for grantors
+    if(!grantors.isEmpty()) {
+      acls.add(new Acl(grantors, singleton(Privilege.ALL), singleton(resource), localPrincipal, true ));
+    }
+
+    return acls;
+  }
+
+  public static TableMetadata mergeExistingAndNewAcls(
+          Configuration conf,
+          TableIdentifier identifier,
+          TableMetadata metadata){
+    if(metadata.properties().containsKey(ACL_PROPERTY_KEY)) {
+      NetflixPrincipal localPrincipal = resolveLocalPrincipal(conf);
+      Table resource = getTableResource(identifier, metadata);
+
+      Set<Acl> newAcls = getAclsFromTablePropertiesAndConf(conf, metadata, resource, localPrincipal);
+      if (newAcls.isEmpty()) {
+        return metadata;
+      }
+      // Map all account names to ids before saving acls
+      newAcls = AclUtils.mapNameToId(newAcls, getMembershipChecker(conf));
+
+      Set<Acl> existingAcls = findExistingAclsAndReplaceTableResource(metadata.properties().get(ACL_PROPERTY_KEY), resource);
+      Set<Acl> mergedAcls = union(existingAcls, newAcls);
+
+      // Create updated properties and remove grants
+      Map<String, String> newProperties = metadata.properties().entrySet().stream()
+              .filter((e) -> !e.getKey().toUpperCase().startsWith("GRANT."))
+              .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+      newProperties.put(ACL_PROPERTY_KEY, AclJsonParser.toJson(mergedAcls));
+      return metadata.replaceProperties(newProperties);
+    }
+    return metadata;
+  }
+
+  // Table might have new uuid. Replace it with new table resource
+  private static Set<Acl> findExistingAclsAndReplaceTableResource(String aclJsonStr, Table resource) {
+    return AclJsonParser.fromJson(aclJsonStr).stream()
+            .map(x -> new Acl(
+                    x.principals(),
+                    x.privileges(),
+                    replaceTableResource(x.resources(), resource),
+                    x.grantor(),
+                    x.withGrant()
+            )).collect(Collectors.toSet());
+  }
+
+  private static Set<Resource> replaceTableResource(Set<Resource> existingResources, Table resource) {
+    Set<Resource> resourcesWithoutTable = existingResources.stream()
+            .filter(x -> x instanceof Table)
+            .collect(Collectors.toSet());
+    resourcesWithoutTable.add(resource);
+    return resourcesWithoutTable;
+  }
+
+  // Ignore grantor while doing union
+  private static Set<Acl> union(Set<Acl> existingAcls, Set<Acl> newAcls) {
+    Set<Acl> mergedAcls = new HashSet<>(existingAcls);
+    Set<Acl> aclsWithoutGrantor = existingAcls.stream().map(SecurityUtil::removeGrantor).collect(Collectors.toSet());
+    for (Acl newAcl : newAcls) {
+      Acl newAclWithoutGrantor = removeGrantor(newAcl);
+      if (!aclsWithoutGrantor.contains(newAclWithoutGrantor)) {
+        mergedAcls.add(newAcl);
+        aclsWithoutGrantor.add(newAclWithoutGrantor);
+      }
+    }
+    return mergedAcls;
+  }
+
+  private static Acl removeGrantor(Acl acl) {
+    return new Acl(acl.principals(), acl.privileges(), acl.resources(), null, acl.withGrant());
   }
 
   private static Set<NetflixPrincipal> findGrantors(Configuration conf, TableMetadata metadata) {

@@ -75,6 +75,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 
 import static com.netflix.iceberg.metacat.DefinitionMetadata.SECURE_FLAG;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CHILD_TABLE_UUID;
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_INHERIT_ACL;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CONF_EXPOSE_INTERNAL_STATES;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CONF_INCLUDE_STS_CREDS_PROPS;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_AUTH_POLICY;
@@ -101,6 +102,8 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
 
   private static final Logger LOG = LoggerFactory.getLogger(MetacatClientOps.class);
   private static final String SPARK_PROVIDER = "spark.sql.sources.provider";
+  private static final String SPARK_NETFLIX_SECURE_FILEIO_ENABLED = "spark.netflix.secure-fileio-enabled";
+  private static final boolean SPARK_NETFLIX_SECURE_FILEIO_ENABLED_DEFAULT = true;
   private static final Predicate<Exception> RETRY_IF = exc ->
       !exc.getClass().getCanonicalName().contains("Unrecoverable") &&
       !(exc instanceof RemoteSigningAccessDeniedException) &&
@@ -301,9 +304,9 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
       if (metadata.properties().containsKey("sort-order") && metadata.sortOrder().isUnsorted()) {
         metadata = metadata.replaceSortOrder(sortOrderFromString(metadata.schema(), metadata.properties().get("sort-order")));
       }
-      
+
       boolean localSecure = DefinitionMetadata.isSecure(definitionMetadata) || shouldCreateSecureTable();
-      if (localSecure && conf.getBoolean("spark.netflix.secure-fileio-enabled", true)) {
+      if (localSecure && conf.getBoolean(SPARK_NETFLIX_SECURE_FILEIO_ENABLED, SPARK_NETFLIX_SECURE_FILEIO_ENABLED_DEFAULT)) {
         // If a table is being created, signal to the signing service
         securityContext.create(true);
         metadata = updateSecureLocation(metadata);
@@ -340,7 +343,11 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
 
     if (secure) {
       SecurityUtil.validateSecureBuckets(metadata.location(), metadata.properties());
+      if (!isCreateNewTable() && metadata.properties().getOrDefault(INTERNAL_INHERIT_ACL, "false").equals("true")) {
+        metadata = SecurityUtil.mergeExistingAndNewAcls(conf, identifier, metadata);
+      }
     }
+    metadata = metadata.removeProperties(x -> x.equals(INTERNAL_INHERIT_ACL));
 
     if(metadata.properties().containsKey(MetacatIcebergCatalog.CLONE_TABLE_SOURCE)) {
       String sourceName =  metadata.properties().get(MetacatIcebergCatalog.CLONE_TABLE_SOURCE);
@@ -488,7 +495,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
           commitStatus = checkCommitStatus(newMetadataLocation, metadata, database, table);
           handleCommitFailure(exception, commitStatus);
         }
-        if(secure && conf.getBoolean("spark.netflix.secure-fileio-enabled", true)) {
+        if(secure && conf.getBoolean(SPARK_NETFLIX_SECURE_FILEIO_ENABLED, SPARK_NETFLIX_SECURE_FILEIO_ENABLED_DEFAULT)) {
           securityContext.create(false);
           securityContext.setCreationLocation(null);
           if (Closeable.class.isInstance(io())) {
@@ -621,7 +628,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
         throw new UncheckedIOException(e);
       }
 
-      if (secure && conf.getBoolean("spark.netflix.secure-fileio-enabled", true)) {
+      if (secure && conf.getBoolean(SPARK_NETFLIX_SECURE_FILEIO_ENABLED, SPARK_NETFLIX_SECURE_FILEIO_ENABLED_DEFAULT)) {
         S3ClientSupplier clientSupplier = createS3ClientSupplier(authStrategy);
         fileIO = new MixedFileIO(conf, clientSupplier, properties);
       } else if (conf.getBoolean("iceberg.s3fileio-enabled", false)) {
@@ -678,7 +685,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
     if (isCreateNewTable()) {
       boolean localSecure = uncommittedMetadata.propertyAsBoolean(SECURE_FLAG, false) ||
               shouldCreateSecureTable();
-      if (localSecure && conf.getBoolean("spark.netflix.secure-fileio-enabled", true)) {
+      if (localSecure && conf.getBoolean(SPARK_NETFLIX_SECURE_FILEIO_ENABLED, SPARK_NETFLIX_SECURE_FILEIO_ENABLED_DEFAULT)) {
         uncommittedMetadata = updateSecureLocation(uncommittedMetadata);
 
         //The purpose of this existence check is actually to trigger the token

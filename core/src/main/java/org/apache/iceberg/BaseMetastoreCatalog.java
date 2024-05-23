@@ -237,6 +237,8 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
       TableMetadata metadata;
       tableProperties.putAll(tableOverrideProperties());
+      // TODO: Find a better way to determine if it is a REPLACE operation
+      tableProperties.put("netflix._internal_.inherit_acl", "true");
       if (ops.current() != null) {
         String baseLocation = location != null ? location : ops.current().location();
         metadata =

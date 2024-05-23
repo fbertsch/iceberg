@@ -47,6 +47,8 @@ public class MetacatIcebergCatalog extends BaseMetastoreCatalog implements Suppo
   public static final String ROOT_TABLE_UUID = "root_table_uuid";
   public static final String INTERNAL_PROP_ROOT_TABLE_UUID = INTERNAL_PROP_PREFIX + ROOT_TABLE_UUID;
   public static final String CHILD_TABLE_UUID = "child_table_uuid";
+  public static final String INTERNAL_INHERIT_ACL = INTERNAL_PROP_PREFIX + "inherit_acl";
+
 
   private static volatile boolean initialized = false;
 
