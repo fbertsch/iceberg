@@ -432,7 +432,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
             SPARK_PROVIDER, ICEBERG_TABLE_TYPE_VALUE,
             TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH),
             METADATA_LOCATION_PROP, newMetadataLocation,
-            PREVIOUS_METADATA_LOCATION_PROP, currentMetadataLocation()
+            PREVIOUS_METADATA_LOCATION_PROP, base.metadataFileLocation()
         ));
 
         if(secure) {
