@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreTableOperations;
@@ -33,8 +34,8 @@ import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.s3.S3FileIO;
+import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -306,11 +307,11 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
   @Override
   public FileIO io() {
     if (fileIO == null) {
-      AwsProperties properties = new AwsProperties();
+      S3FileIOProperties properties = new S3FileIOProperties();
       try {
         getStagingDirectory(conf)
             .map(File::getAbsolutePath)
-            .ifPresent(properties::setS3fileIoStagingDirectory);
+            .ifPresent(properties::setStagingDirectory);
       } catch (IOException e) {
         LOG.error("Failed to locate staging directory", e);
         throw new UncheckedIOException(e);
