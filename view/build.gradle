@@ -10,7 +10,7 @@ dependencies {
   implementation project(':iceberg-core')
   implementation "com.fasterxml.jackson.core:jackson-databind"
 
-  compileOnly('org.apache.hadoop:hadoop-client') {
+  compileOnly(libs.hadoop2.client) {
     exclude group: 'org.apache.avro', module: 'avro'
     exclude group: 'org.slf4j', module: 'slf4j-log4j12'
   }

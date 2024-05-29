@@ -119,12 +119,6 @@ allprojects {
     ignore('com.netflix.s3authsigncde:s3-auth-sign-common')
     ignore('com.netflix.s3authsigncde:s3-auth-sts-client')
   }
-
-  nebulaPublishVerification {
-    ignore('com.netflix.s3authsigncde:s3-auth-sign-client')
-    ignore('com.netflix.s3authsigncde:s3-auth-sign-common')
-    ignore('com.netflix.s3authsigncde:s3-auth-sts-client')
-  }
 }
 
 subprojects {
@@ -734,7 +728,7 @@ project(':iceberg-parquet') {
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
 
-    implementation 'com.codahale.metrics:metrics-core'
+    implementation libs.metrics.core
     implementation(libs.parquet.avro) {
       exclude group: 'org.apache.avro', module: 'avro'
       // already shaded by Parquet

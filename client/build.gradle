@@ -14,6 +14,7 @@ tasks.build.dependsOn tasks.shadowJar
 tasks.javadocJar.dependsOn tasks.shadowJar
 
 dependencies {
+  implementation platform(libs.awssdk.bom)
   implementation('software.amazon.awssdk:s3') {
     exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
   }
@@ -25,9 +26,9 @@ dependencies {
   }
 
   // Added because their transitive dependencies are needed to access secure table with the single bdp-iceberg-client jar
-  implementation("com.netflix.s3authsigncde:s3-auth-sign-client")
-  implementation("com.netflix.s3authsigncde:s3-auth-sts-client")
-  implementation("com.netflix.s3authsigncde:s3-auth-sign-common")
+  implementation(libs.s3authsigncde.s3.auth.sign.client)
+  implementation(libs.s3authsigncde.s3.auth.sts.client)
+  implementation(libs.s3authsigncde.s3.auth.sign.common)
 
   shadow(project(":iceberg-parquet")) {
     exclude group: 'com.netflix.iceberg' // included with iceberg-data
@@ -38,10 +39,10 @@ dependencies {
     exclude group: 'org.junit'
   }
 
-  shadow("com.codahale.metrics:metrics-core")
-  shadow("org.slf4j:jcl-over-slf4j")
+  shadow(libs.metrics.core)
+  shadow(libs.slf4j.jcl.over.slf4j)
 
-  shadow("org.apache.hadoop:hadoop-mapreduce-client-core") {
+  shadow(libs.hadoop2.mapreduce.client.core) {
     exclude group: 'commons-logging'
     exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-common'
     exclude group: 'junit'
@@ -74,7 +75,7 @@ dependencies {
     exclude group: 'org.apache.directory.server'
   }
 
-  shadow("com.netflix.bdp:bdp-s3fs::shadow") {
+  shadow("com.netflix.bdp:bdp-s3fs:0.1.29:shadow") {
     exclude group: 'commons-logging'
     exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-common'
     exclude group: 'junit'
