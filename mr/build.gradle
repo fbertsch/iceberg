@@ -49,7 +49,9 @@ project(':iceberg-mr') {
       exclude group: 'org.pentaho' // missing dependency
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
-    compileOnly libs.hive2.metastore
+    compileOnly (libs.hive2.metastore) {
+      exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
+    }
     compileOnly libs.hive2.serde
 
     implementation libs.caffeine

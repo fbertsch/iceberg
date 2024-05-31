@@ -20,7 +20,7 @@ configurations {
 }
 
 dependencies {
-//  implementation(platform(libs.awssdk.bom))
+  implementation(platform(libs.awssdk.bom))
   implementation('software.amazon.awssdk:s3') {
     exclude group: 'software.amazon.awssdk', module: 'netty-nio-client'
   }
@@ -36,7 +36,7 @@ dependencies {
   implementation(libs.s3authsigncde.s3.auth.sts.client)
   implementation(libs.s3authsigncde.s3.auth.sign.common)
 
-  shadow('netflix:dse-metric') {
+  shadow(libs.dse.metric) {
     transitive = false
   }
 

@@ -26,12 +26,14 @@ dependencies {
   shadow(project(':iceberg-spark:iceberg-spark-extensions-3.3_2.12')) {
     exclude group: 'com.netflix.bdp', module: 'metrics'
   }
-  shadow('netflix:dse-metric') {
+  shadow(libs.dse.metric) {
     transitive = false
   }
 
   // Include local hive catalog for unit testing
-  shadow(project(path: ':iceberg-hive-metastore'))
+  shadow(project(path: ':iceberg-hive-metastore')) {
+    exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
+  }
 
   shadow(project(':iceberg-metacat')) {
     // exclude transitive dependencies provided by the Spark distribution

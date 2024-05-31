@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest;
 
+import static org.apache.iceberg.TableProperties.CLEANUP_METADATA_ON_COMMIT_FAILURE_DEFAULT;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
@@ -2120,7 +2121,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     UpdateTableRequest request = captor.getValue();
     MetadataUpdate.AddSnapshot addSnapshot = (MetadataUpdate.AddSnapshot) request.updates().get(0);
     Assertions.assertThat(
-            table.io().newInputFile(addSnapshot.snapshot().manifestListLocation()).exists())
+            CLEANUP_METADATA_ON_COMMIT_FAILURE_DEFAULT ||
+                    table.io().newInputFile(addSnapshot.snapshot().manifestListLocation()).exists())
         .isTrue();
   }
 

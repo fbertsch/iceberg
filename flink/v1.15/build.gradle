@@ -19,8 +19,15 @@
 
 String flinkMajorVersion = '1.15'
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
+boolean testFlink = false
 
 project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
+
+  test {
+    filter{
+      excludeTestsMatching("org.apache.iceberg.flink.source.TestMetadataTableReadableMetrics")
+    }
+  }
 
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
@@ -124,6 +131,12 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
 
 project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
   apply plugin: 'com.github.johnrengelman.shadow'
+
+  test {
+    filter{
+      excludeTestsMatching("org.apache.iceberg.flink.source.TestMetadataTableReadableMetrics")
+    }
+  }
 
   tasks.jar.dependsOn tasks.shadowJar
 

@@ -58,8 +58,6 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private final OutputFile output;
   private final Configuration conf;
   private final InternalFileEncryptor fileEncryptor;
-  // Move to using fileEncryptor once hadoop-parquet is upgraded to 1.13.+
-  private final FileEncryptionProperties fileEncryptionProperties; // TODO : Move to using
 
   private ColumnChunkPageWriteStore pageStore = null;
   private ColumnWriteStore writeStore;
@@ -101,7 +99,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.rowGroupOrdinal = 0;
     this.fileEncryptor =
         (encryptionProperties == null ? null : new InternalFileEncryptor(encryptionProperties));
-    this.fileEncryptionProperties = (encryptionProperties == null ? null : encryptionProperties);
+
     startRowGroup();
   }
 
@@ -118,7 +116,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
                 columnIndexTruncateLength,
                 ParquetProperties.DEFAULT_STATISTICS_TRUNCATE_LENGTH,
                 ParquetProperties.DEFAULT_PAGE_WRITE_CHECKSUM_ENABLED,
-                fileEncryptionProperties);
+                fileEncryptor);
       } catch (IOException e) {
         throw new UncheckedIOException("Failed to create Parquet file", e);
       }
