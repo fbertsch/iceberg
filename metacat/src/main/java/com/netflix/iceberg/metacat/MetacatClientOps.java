@@ -69,6 +69,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import static com.netflix.iceberg.metacat.DefinitionMetadata.SECURE_FLAG;
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CHILD_TABLE_UUID;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CONF_EXPOSE_INTERNAL_STATES;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CONF_INCLUDE_STS_CREDS_PROPS;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_AUTH_POLICY;
@@ -359,6 +360,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
               .withAdditionalProperties(reserved);
       definitionMetadata.put(ROOT_TABLE_NAME, sourceName);
       definitionMetadata.put(ROOT_TABLE_UUID, sourceMetadata.uuid());
+      definitionMetadata.put(CHILD_TABLE_UUID, metadata.uuid());
 
       metadata = mergeMetadataForCloneTable(metadata, sourceMetadata);
     }
