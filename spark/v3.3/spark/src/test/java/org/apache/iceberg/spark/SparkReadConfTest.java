@@ -144,4 +144,61 @@ public class SparkReadConfTest {
         Assert.assertEquals("Read option overrides all others",
             splitSizeOption, readConf.splitSizeOption().longValue());
     }
+
+    @Test
+    public void snapshotIdNone() {
+        SparkReadConf readConf = new SparkReadConf(spark, table, ImmutableMap.of());
+        Assert.assertNull(readConf.snapshotId());
+        Assert.assertNull(readConf.snapshotId());
+    }
+
+    @Test
+    public void snapshotIdFromOption() {
+        long snapshotIdOption = 12345;
+        Map<String, String> options = ImmutableMap.of(SparkReadOptions.SNAPSHOT_ID, Long.toString(snapshotIdOption));
+
+        SparkReadConf readConf = new SparkReadConf(spark, table, options);
+        Assert.assertEquals(snapshotIdOption, readConf.snapshotId().longValue());
+    }
+
+    @Test
+    public void snapshotIdFromConf() {
+        long snapshotIdConf = 54321;
+        Mockito.when(spark.conf().get("spark.netflix.db.tbl.snapshot-id", null))
+            .thenReturn(String.valueOf(snapshotIdConf));
+
+        SparkReadConf readConf = new SparkReadConf(spark, table, ImmutableMap.of());
+        Assert.assertEquals(snapshotIdConf, readConf.snapshotId().longValue());
+    }
+
+    @Test
+    public void snapshotIdFromConfAndOption() {
+        long snapshotIdOption = 12345;
+        Map<String, String> options = ImmutableMap.of(SparkReadOptions.SNAPSHOT_ID, Long.toString(snapshotIdOption));
+
+        long snapshotIdConf = 54321;
+        Mockito.when(spark.conf().get("spark.netflix.db.tbl.snapshot-id", null))
+            .thenReturn(String.valueOf(snapshotIdConf));
+
+        SparkReadConf readConf = new SparkReadConf(spark, table, options);
+        Assert.assertEquals("Read option overrides Spark config", snapshotIdOption, readConf.snapshotId().longValue());
+    }
+
+    @Test
+    public void multipleSnapshotIdsFromConf() {
+        long firstSnapshotIdConf = 54321;
+        long secondSnapshotIdConf = 12345;
+        Mockito.when(spark.conf().get("spark.netflix.db.tbl.snapshot-id", null))
+                .thenReturn(String.valueOf(firstSnapshotIdConf));
+        Mockito.when(spark.conf().get("spark.netflix.db.tbl2.snapshot-id", null))
+                .thenReturn(String.valueOf(secondSnapshotIdConf));
+
+        SparkReadConf firstReadConf = new SparkReadConf(spark, table, ImmutableMap.of());
+        Assert.assertEquals(firstSnapshotIdConf, firstReadConf.snapshotId().longValue());
+
+        Table secondTable = Mockito.mock(Table.class);
+        Mockito.when(secondTable.name()).thenReturn("cat.db.tbl2");
+        SparkReadConf secondReadConf = new SparkReadConf(spark, secondTable, ImmutableMap.of());
+        Assert.assertEquals(secondSnapshotIdConf, secondReadConf.snapshotId().longValue());
+    }
 }

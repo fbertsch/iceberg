@@ -75,7 +75,11 @@ public class SparkReadConf {
   }
 
   public Long snapshotId() {
-    return confParser.longConf().option(SparkReadOptions.SNAPSHOT_ID).parseOptional();
+    return confParser
+            .longConf()
+            .option(SparkReadOptions.SNAPSHOT_ID)
+            .sessionConf(netflixSnapshotIdConfName())
+            .parseOptional();
   }
 
   public Long asOfTimestamp() {
@@ -199,6 +203,14 @@ public class SparkReadConf {
     String[] names = table.name().split("\\.", 2);
     if (names.length > 1) {
       return String.format("spark.netflix.%s.target-size", names[1]);
+    }
+    return "";
+  }
+
+  private String netflixSnapshotIdConfName() {
+    String[] names = table.name().split("\\.", 2);
+    if (names.length > 1) {
+      return String.format("spark.netflix.%s.snapshot-id", names[1]);
     }
     return "";
   }

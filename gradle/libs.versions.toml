@@ -153,6 +153,7 @@ orc-core = { module = "org.apache.orc:orc-core", version.ref = "orc" }
 parquet-avro = { module = "org.apache.parquet:parquet-avro", version.ref = "parquet" }
 parquet-column = { module = "org.apache.parquet:parquet-column", version.ref = "parquet" }
 parquet-hadoop = { module = "org.apache.parquet:parquet-hadoop", version.ref = "parquet" }
+parquet-hadoop-bundle = { module = "org.apache.parquet:parquet-hadoop-bundle", version.ref = "parquet" }
 pig = { module = "org.apache.pig:pig", version.ref = "pig" }
 roaringbitmap = { module = "org.roaringbitmap:RoaringBitmap", version.ref = "roaringbitmap" }
 scala-collection-compat = { module = "org.scala-lang.modules:scala-collection-compat_2.13", version.ref = "scala-collection-compat"}

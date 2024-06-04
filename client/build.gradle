@@ -129,9 +129,9 @@ dependencies {
 
   integrationCompileOnly(project(':iceberg-metacat'))
   integrationCompileOnly(project(':iceberg-parquet'))
-  integrationCompileOnly("org.apache.hadoop:hadoop-client")
+  integrationCompileOnly(libs.hadoop2.client)
   integrationCompileOnly("org.apache.hadoop:hadoop-mapreduce-client-core")
-  integrationCompileOnly("org.apache.parquet:parquet-hadoop-bundle")
+  integrationCompileOnly(libs.parquet.hadoop.bundle)
   integrationImplementation 'org.junit.jupiter:junit-jupiter-engine'
 }
 
