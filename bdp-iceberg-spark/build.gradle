@@ -92,6 +92,7 @@ shadowJar {
   relocate 'com.fasterxml', "${relocationPrefix}.com.fasterxml"
   relocate 'com.github.benmanes', "${relocationPrefix}.com.github.benmanes"
   relocate 'okhttp3', "${relocationPrefix}.okhttp3"
+  relocate 'okio', "${relocationPrefix}.okio"
   relocate 'org.checkerframework', "${relocationPrefix}.org.checkerframework"
   relocate 'org.apache.avro', "${relocationPrefix}.org.apache.avro"
   relocate 'avro.shaded', "${relocationPrefix}.avro.shaded"

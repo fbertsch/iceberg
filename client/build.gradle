@@ -200,6 +200,7 @@ shadowJar {
     exclude 'com.netflix.bdp.view.**'
   }
   relocate 'okhttp3', "${relocationPrefix}.okhttp3"
+  relocate 'okio', "${relocationPrefix}.okio"
   relocate 'org.apache.http', "${relocationPrefix}.org.apache.http"
 
   // Relocate Metacat dependencies to avoid conflicts in Spark
