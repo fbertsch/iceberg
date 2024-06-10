@@ -262,6 +262,13 @@ project(':iceberg-api') {
     testImplementation libs.esotericsoftware.kryo
   }
 
+  tasks.processResources.dependsOn rootProject.tasks.buildInfo
+  processResources {
+    from("${rootDir}/build") {
+      include("iceberg-build.properties")
+    }
+  }
+
   tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
   tasks.processTestResources.mustRunAfter rootProject.tasks.writeVersionFiles
 
