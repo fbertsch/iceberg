@@ -27,7 +27,7 @@ public class NdcUtil {
   private static HttpClient httpClient;
 
   private static String getQualifiedNameStr(String catalogName, String dbName, String tableName) {
-    return String.format("ndc://hive:prod:us-east-1/%s/%s/%s", catalogName, dbName, tableName);
+    return String.format("ndc://hive:prod/%s/%s/%s", catalogName, dbName, tableName).toLowerCase();
   }
 
   private static synchronized HttpClient getHttpClient() {
