@@ -14,7 +14,13 @@ import com.netflix.metacat.client.Client;
 import com.netflix.metacat.common.QualifiedName;
 import com.netflix.metacat.common.dto.StorageDto;
 import com.netflix.metacat.common.dto.TableDto;
-import com.netflix.metacat.common.exception.*;
+import com.netflix.metacat.common.exception.MetacatAlreadyExistsException;
+import com.netflix.metacat.common.exception.MetacatBadRequestException;
+import com.netflix.metacat.common.exception.MetacatException;
+import com.netflix.metacat.common.exception.MetacatNotFoundException;
+import com.netflix.metacat.common.exception.MetacatPreconditionFailedException;
+import com.netflix.metacat.common.exception.MetacatUserMetadataException;
+import com.netflix.metacat.shaded.com.fasterxml.jackson.databind.JsonNode;
 import com.netflix.metacat.shaded.com.fasterxml.jackson.databind.node.ObjectNode;
 import com.netflix.nflxe2etokens.validation.common.E2eTokenConstants;
 import com.netflix.s3authsign.common.rest.RemoteSigningAccessDeniedException;
@@ -65,6 +71,7 @@ import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.apache.spark.sql.SparkSession;
@@ -74,18 +81,17 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import static com.netflix.iceberg.metacat.DefinitionMetadata.SECURE_FLAG;
-import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CHILD_TABLE_UUID;
-import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_INHERIT_ACL;
+import static com.netflix.iceberg.metacat.DefinitionMetadata.setParentChildRelationship;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CONF_EXPOSE_INTERNAL_STATES;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CONF_INCLUDE_STS_CREDS_PROPS;
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_INHERIT_ACL;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_AUTH_POLICY;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_METADATA_LOC;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_MIGRATED_DATA_LOCATION;
-import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_ROOT_TABLE_NAME;
-import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_ROOT_TABLE_UUID;
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_PARENT_TABLE_NAME;
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_PARENT_TABLE_UUID;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.LOAD_AUTH_ONLY_METADATA;
-import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.ROOT_TABLE_NAME;
-import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.ROOT_TABLE_UUID;
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.PARENT_CHILD_RELATION_INFO;
 import static com.netflix.iceberg.metacat.MetacatUtil.OWNER;
 import static com.netflix.iceberg.metacat.NdcUtil.NDC_PROD_PREFIX;
 import static com.netflix.iceberg.metacat.NdcUtil.NDC_UPDATE_ENABLED_CONF;
@@ -224,15 +230,16 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
             builder.put(INTERNAL_PROP_MIGRATED_DATA_LOCATION, migratedDataLoc);
           }
 
-          // Expose root table name and uuid of table clones
-          String rootTableName = DefinitionMetadata.getAsText(tableInfo.getDefinitionMetadata(), ROOT_TABLE_NAME);
-          if(rootTableName != null) {
-            builder.put(INTERNAL_PROP_ROOT_TABLE_NAME, rootTableName);
+          // Expose parent table name and uuid of table clones
+          String[] parentTableNameAndUuid = getParentTableInfo(tableInfo);
+          String parentName = parentTableNameAndUuid[0];
+          if(!Strings.isNullOrEmpty(parentName)) {
+            builder.put(INTERNAL_PROP_PARENT_TABLE_NAME, parentName.replace('/', '.'));
           }
 
-          String rootTableUuid = DefinitionMetadata.getAsText(tableInfo.getDefinitionMetadata(), ROOT_TABLE_UUID);
-          if(rootTableUuid != null) {
-            builder.put(INTERNAL_PROP_ROOT_TABLE_UUID, rootTableUuid);
+          String parentUuid = parentTableNameAndUuid[1];
+          if(!Strings.isNullOrEmpty(parentUuid)) {
+            builder.put(INTERNAL_PROP_PARENT_TABLE_UUID, parentUuid);
           }
 
           finalProperties.putAll(builder.build());
@@ -272,6 +279,15 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
       warnLatency("refresh metadata from %s after Metacat not found", metadataLocationLocal)
           .run(() -> refreshFromMetadataLocation(metadataLocationLocal, RETRY_IF, 20));
     }
+  }
+
+  private String[] getParentTableInfo(TableDto tableInfo) {
+    JsonNode parentInfosNode = tableInfo.getDefinitionMetadata()
+        .findPath(PARENT_CHILD_RELATION_INFO)
+        .findPath("parentInfos");
+    String name = parentInfosNode.findPath("name").asText();
+    String uuid = parentInfosNode.findPath("uuid").asText();
+    return new String[]{name, uuid};
   }
 
   private TableMetadata getTableMetadata(String loc) {
@@ -375,9 +391,8 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
       MetacatClientOps sourceTableOps = new MetacatClientOps(conf, metacatClient, TableIdentifier.parse(sourceName));
       TableMetadata sourceMetadata = TableMetadataParser.read(sourceTableOps.io(), sourceMetadataLocation)
               .withAdditionalProperties(reserved);
-      definitionMetadata.put(ROOT_TABLE_NAME, sourceName);
-      definitionMetadata.put(ROOT_TABLE_UUID, sourceMetadata.uuid());
-      definitionMetadata.put(CHILD_TABLE_UUID, metadata.uuid());
+
+      setParentChildRelationship(definitionMetadata, sourceName.replace('.', '/'), sourceMetadata.uuid(), metadata.uuid());
 
       metadata = mergeMetadataForCloneTable(metadata, sourceMetadata);
     }

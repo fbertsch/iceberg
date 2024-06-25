@@ -42,10 +42,11 @@ public class MetacatIcebergCatalog extends BaseMetastoreCatalog implements Suppo
   public static final String INTERNAL_PROP_METADATA_LOC = INTERNAL_PROP_PREFIX + "metadata_location";
   public static final String INTERNAL_PROP_AUTH_POLICY = INTERNAL_PROP_PREFIX + "auth_policy";
   public static final String INTERNAL_PROP_MIGRATED_DATA_LOCATION = INTERNAL_PROP_PREFIX + MIGRATED_DATA_LOCATION;
-  public static final String ROOT_TABLE_NAME = "root_table_name";
-  public static final String INTERNAL_PROP_ROOT_TABLE_NAME = INTERNAL_PROP_PREFIX + ROOT_TABLE_NAME;
-  public static final String ROOT_TABLE_UUID = "root_table_uuid";
-  public static final String INTERNAL_PROP_ROOT_TABLE_UUID = INTERNAL_PROP_PREFIX + ROOT_TABLE_UUID;
+  public static final String PARENT_CHILD_RELATION_INFO = "parentChildRelationInfo";
+  public static final String PARENT_TABLE_NAME = "parent_table_name";
+  public static final String INTERNAL_PROP_PARENT_TABLE_NAME = INTERNAL_PROP_PREFIX + PARENT_TABLE_NAME;
+  public static final String PARENT_TABLE_UUID = "parent_table_uuid";
+  public static final String INTERNAL_PROP_PARENT_TABLE_UUID = INTERNAL_PROP_PREFIX + PARENT_TABLE_UUID;
   public static final String CHILD_TABLE_UUID = "child_table_uuid";
   public static final String INTERNAL_INHERIT_ACL = INTERNAL_PROP_PREFIX + "inherit_acl";
 
@@ -148,7 +149,9 @@ public class MetacatIcebergCatalog extends BaseMetastoreCatalog implements Suppo
     Table sourceTable = loadTable(sourceTableIdentifier);
     ImmutableMap.Builder<String, String> propertiesBuilder = ImmutableMap.builder();
     propertiesBuilder.putAll(sourceTable.properties());
-    propertiesBuilder.putAll(properties);
+    if(properties != null) {
+      propertiesBuilder.putAll(properties);
+    }
     propertiesBuilder.put(CLONE_TABLE_SOURCE, sourceTable.name());
     propertiesBuilder.put(CLONE_TABLE_WITH_SNAPSHOTS, Boolean.toString(includeSnapshots));
     propertiesBuilder.put("secure", "true");

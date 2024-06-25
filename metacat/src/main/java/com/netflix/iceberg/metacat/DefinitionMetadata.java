@@ -33,7 +33,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CHILD_TABLE_UUID;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.MIGRATED_DATA_LOCATION;
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.PARENT_CHILD_RELATION_INFO;
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.PARENT_TABLE_NAME;
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.PARENT_TABLE_UUID;
 import static com.netflix.iceberg.metacat.MetacatUtil.NETFLIX_OWNER;
 import static com.netflix.iceberg.metacat.MetacatUtil.OWNER;
 
@@ -143,9 +147,9 @@ class DefinitionMetadata {
     return null;
   }
 
-  public static String getAsText(ObjectNode definitionMetadata, String field) {
-    if (definitionMetadata.hasNonNull(field)) {
-      return definitionMetadata.get(field).asText();
+  public static String getAsText(JsonNode node, String field) {
+    if (node != null && node.hasNonNull(field)) {
+      return node.get(field).asText();
     }
     return null;
   }
@@ -386,5 +390,14 @@ class DefinitionMetadata {
         builder.put(property, value.asText());
       }
     }
+  }
+
+  public static void setParentChildRelationship(ObjectNode meta, String rootTableName, String rootTableUuid, String childTableUuid) {
+    ObjectNode node = JsonNodeFactory.instance.objectNode();
+    node.put(PARENT_TABLE_NAME, rootTableName);
+    node.put(PARENT_TABLE_UUID, rootTableUuid);
+    node.put(CHILD_TABLE_UUID, childTableUuid);
+
+    meta.put(PARENT_CHILD_RELATION_INFO, node);
   }
 }
