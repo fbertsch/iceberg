@@ -163,7 +163,8 @@ public class MetacatApi implements MetacatV1 {
                 includeInfo,
                 includeDefinitionMetadata,
                 includeDataMetadata,
-                includeInfoDetails));
+                includeInfoDetails,
+                includeMetadataLocationOnly));
   }
 
   @Override
