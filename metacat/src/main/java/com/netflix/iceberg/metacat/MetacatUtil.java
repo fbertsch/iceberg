@@ -39,6 +39,7 @@ public class MetacatUtil {
 
   public static final String OWNER = "owner";
   public static final String NETFLIX_OWNER = "netflix.owner";
+  public static final String SIMPLE_GET_USER_ENABLED = "netflix.iceberg.metacat.simple-get-user-enabled";
 
   private MetacatUtil() {
   }
@@ -172,11 +173,17 @@ public class MetacatUtil {
   }
 
   public static Client newClient(String appName, String host, Configuration conf) {
+    String user;
+    if(conf.getBoolean(SIMPLE_GET_USER_ENABLED, false)) {
+      user = System.getProperty("user.name", "unknown_system_user");
+    } else {
+      user = getUser();
+    }
     return Client.builder()
         .withClientAppName(appName)
         .withHost(host)
         .withJobId(getJobId(conf))
-        .withUserName(getUser())
+        .withUserName(user)
         .withDataTypeContext("hive")
         .withRetryer(getRetryer(conf))
         .withRequestOptions(getRequestOptions(conf))
