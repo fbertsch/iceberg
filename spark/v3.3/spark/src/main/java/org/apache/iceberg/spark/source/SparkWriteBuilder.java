@@ -154,7 +154,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     SortOrder[] ordering;
 
     if (useTableDistributionAndOrdering) {
-      if (Spark3Util.extensionsEnabled(spark) || allIdentityTransforms(table.spec())) {
+      if (Spark3Util.extensionsEnabled() || allIdentityTransforms(table.spec())) {
         distribution = buildRequiredDistribution();
         ordering = buildRequiredOrdering(distribution);
       } else {

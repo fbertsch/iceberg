@@ -97,6 +97,8 @@ public class Spark3Util {
       ImmutableSet.of(TableCatalog.PROP_LOCATION, TableCatalog.PROP_PROVIDER);
   private static final Joiner DOT = Joiner.on(".");
 
+  private static final String EXTENSIONS_ENABLED = "iceberg.spark.session.extensions.enabled";
+
   private Spark3Util() {}
 
   public static CaseInsensitiveStringMap setOption(
@@ -518,9 +520,12 @@ public class Spark3Util {
     return Joiner.on(", ").join(SortOrderVisitor.visit(order, DescribeSortOrderVisitor.INSTANCE));
   }
 
-  public static boolean extensionsEnabled(SparkSession spark) {
-    String extensions = spark.conf().get("spark.sql.extensions", "");
-    return extensions.contains("IcebergSparkSessionExtensions");
+  public static boolean extensionsEnabled() {
+    return "true".equals(System.getProperty(EXTENSIONS_ENABLED));
+  }
+
+  public static void setExtensionsEnabled() {
+    System.setProperty(EXTENSIONS_ENABLED, "true");
   }
 
   public static class DescribeSchemaVisitor extends TypeUtil.SchemaVisitor<String> {
