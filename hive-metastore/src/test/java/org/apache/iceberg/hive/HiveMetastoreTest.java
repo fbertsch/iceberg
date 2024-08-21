@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.Database;
+import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -46,6 +47,7 @@ public abstract class HiveMetastoreTest {
     startMetastore(Collections.emptyMap());
   }
 
+
   public static void startMetastore(Map<String, String> hiveConfOverride) throws Exception {
     HiveMetastoreTest.metastore = new TestHiveMetastore();
     HiveConf hiveConfWithOverrides = new HiveConf(TestHiveMetastore.class);
@@ -58,9 +60,13 @@ public abstract class HiveMetastoreTest {
     metastore.start(hiveConfWithOverrides);
     HiveMetastoreTest.hiveConf = metastore.hiveConf();
     HiveMetastoreTest.metastoreClient = new HiveMetaStoreClient(hiveConfWithOverrides);
-    String dbPath = metastore.getDatabasePath(DB_NAME);
-    Database db = new Database(DB_NAME, "description", dbPath, Maps.newHashMap());
-    metastoreClient.createDatabase(db);
+
+    if(!testDbExists(metastoreClient, DB_NAME)){
+      //Create hivedb
+      String dbPath = metastore.getDatabasePath(DB_NAME);
+      Database db = new Database(DB_NAME, "description", dbPath, Maps.newHashMap());
+      metastoreClient.createDatabase(db);
+    }
     HiveMetastoreTest.catalog =
         (HiveCatalog)
             CatalogUtil.loadCatalog(
@@ -70,6 +76,17 @@ public abstract class HiveMetastoreTest {
                     CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
                     String.valueOf(EVICTION_INTERVAL)),
                 hiveConfWithOverrides);
+  }
+
+  private static boolean testDbExists(HiveMetaStoreClient metastoreClient, String dbName) {
+    try{
+      return (metastoreClient.getDatabase(dbName) != null);
+    } catch (NoSuchObjectException e) {
+        // This exception is thrown when the db doesn't exist
+        return false;
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @AfterAll

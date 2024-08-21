@@ -31,6 +31,7 @@ import scala.collection.JavaConverters;
 
 public class SparkBenchmarkUtil {
 
+
   private SparkBenchmarkUtil() {}
 
   public static UnsafeProjection projection(Schema expectedSchema, Schema actualSchema) {
