@@ -152,6 +152,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
       exclude group: 'org.roaringbitmap'
     }
     compileOnly libs.errorprone.annotations
+    compileOnly libs.s3authsigncde.s3.auth.sign.common
 
     testImplementation project(path: ':iceberg-data')
     testImplementation project(path: ':iceberg-parquet')
