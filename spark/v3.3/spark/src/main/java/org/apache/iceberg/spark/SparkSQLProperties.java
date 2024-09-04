@@ -63,4 +63,8 @@ public class SparkSQLProperties {
   // Controls the WAP branch used for write-audit-publish workflow.
   // When set, new snapshots will be committed to this branch.
   public static final String WAP_BRANCH = "spark.wap.branch";
+
+  public static final String ASYNC_MICRO_BATCH_PLANNING_ENABLED =
+          "spark.sql.iceberg.async-micro-batch-planning-enabled";
+  public static final boolean ASYNC_MICRO_BATCH_PLANNING_ENABLED_DEFAULT = false;
 }

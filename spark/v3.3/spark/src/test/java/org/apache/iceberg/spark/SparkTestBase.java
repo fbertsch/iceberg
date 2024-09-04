@@ -108,6 +108,10 @@ public abstract class SparkTestBase extends SparkTestHelperBase {
     }
   }
 
+  protected SparkSession getSpark() {
+    return spark;
+  }
+
   protected long waitUntilAfter(long timestampMillis) {
     long current = System.currentTimeMillis();
     while (current <= timestampMillis) {

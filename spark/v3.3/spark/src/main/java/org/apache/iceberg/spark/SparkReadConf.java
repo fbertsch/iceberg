@@ -145,6 +145,14 @@ public class SparkReadConf {
         .parse();
   }
 
+  public long streamingSnapshotPollingIntervalMs() {
+    return confParser
+            .longConf()
+            .option(SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS)
+            .defaultValue(SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS_DEFAULT)
+            .parse();
+  }
+
   public boolean parquetVectorizationEnabled() {
     return confParser
         .booleanConf()
@@ -312,5 +320,14 @@ public class SparkReadConf {
         .sessionConf(SparkSQLProperties.AGGREGATE_PUSH_DOWN_ENABLED)
         .defaultValue(SparkSQLProperties.AGGREGATE_PUSH_DOWN_ENABLED_DEFAULT)
         .parse();
+  }
+
+  public boolean asyncMicroBatchPlanningEnabled() {
+    return confParser
+            .booleanConf()
+            .option(SparkReadOptions.ASYNC_MICRO_BATCH_PLANNING_ENABLED)
+            .sessionConf(SparkSQLProperties.ASYNC_MICRO_BATCH_PLANNING_ENABLED)
+            .defaultValue(SparkSQLProperties.ASYNC_MICRO_BATCH_PLANNING_ENABLED_DEFAULT)
+            .parse();
   }
 }

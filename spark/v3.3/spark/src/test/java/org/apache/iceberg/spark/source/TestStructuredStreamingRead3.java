@@ -46,6 +46,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.spark.api.java.function.VoidFunction2;
@@ -55,6 +56,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.streaming.DataStreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.streaming.StreamingQuery;
+import org.apache.spark.sql.streaming.Trigger;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
@@ -65,10 +67,57 @@ import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
 public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
-  public TestStructuredStreamingRead3(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
+
+  // these parameters are broken out to avoid changes that need to modify lots of test suites
+  @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, async = {3}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      {
+        SparkCatalogConfig.HIVE.catalogName(),
+        SparkCatalogConfig.HIVE.implementation(),
+        SparkCatalogConfig.HIVE.properties(),
+        Boolean.TRUE
+      },
+      {
+        SparkCatalogConfig.HADOOP.catalogName(),
+        SparkCatalogConfig.HADOOP.implementation(),
+        SparkCatalogConfig.HADOOP.properties(),
+        Boolean.TRUE
+      },
+      {
+        SparkCatalogConfig.SPARK.catalogName(),
+        SparkCatalogConfig.SPARK.implementation(),
+        SparkCatalogConfig.SPARK.properties(),
+        Boolean.TRUE
+      },
+      {
+        SparkCatalogConfig.HIVE.catalogName(),
+        SparkCatalogConfig.HIVE.implementation(),
+        SparkCatalogConfig.HIVE.properties(),
+        Boolean.FALSE
+      },
+      {
+        SparkCatalogConfig.HADOOP.catalogName(),
+        SparkCatalogConfig.HADOOP.implementation(),
+        SparkCatalogConfig.HADOOP.properties(),
+        Boolean.FALSE
+      },
+      {
+        SparkCatalogConfig.SPARK.catalogName(),
+        SparkCatalogConfig.SPARK.implementation(),
+        SparkCatalogConfig.SPARK.properties(),
+        Boolean.FALSE
+      }
+    };
   }
+
+  public TestStructuredStreamingRead3(
+      String catalogName, String implementation, Map<String, String> config, Boolean async) {
+    super(catalogName, implementation, config);
+    this.async = async;
+  }
+
+  private final Boolean async;
 
   private Table table;
 
@@ -609,16 +658,25 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         .format("memory")
         .queryName(MEMORY_TABLE)
         .outputMode(OutputMode.Append())
+        .trigger(Trigger.ProcessingTime("1 second"))
         .start();
   }
 
   private StreamingQuery startStream() throws TimeoutException {
-    return startStream(Collections.emptyMap());
+    return startStream(ImmutableMap.of(
+            SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS, "500",
+            SparkReadOptions.ASYNC_MICRO_BATCH_PLANNING_ENABLED, Boolean.toString(async)
+    ));
   }
 
   private StreamingQuery startStream(String key, String value) throws TimeoutException {
     return startStream(
-        ImmutableMap.of(key, value, SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1"));
+        ImmutableMap.of(
+                key, value,
+                SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1",
+                SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS, "500",
+                SparkReadOptions.ASYNC_MICRO_BATCH_PLANNING_ENABLED, Boolean.toString(async)
+        ));
   }
 
   private int microBatchCount(Map<String, String> options) throws TimeoutException {
