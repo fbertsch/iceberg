@@ -57,6 +57,7 @@ public class SparkProcedures {
     mapBuilder.put("rewrite_position_delete_files", RewritePositionDeleteFilesProcedure::builder);
     mapBuilder.put("fast_forward", FastForwardBranchProcedure::builder);
     mapBuilder.put("nf_clone_table", NfCloneTableProcedure::builder);
+    mapBuilder.put("revert_delete", RevertDeleteProcedure::builder);
     return mapBuilder.build();
   }
 
