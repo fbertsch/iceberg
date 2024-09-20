@@ -750,4 +750,14 @@ public class TableTestBase {
   protected interface Action {
     void invoke();
   }
+
+  @Before
+  public void setUp() {
+    System.setProperty("netflix.janitor.cleanExpiredFiles", "true");
+  }
+
+  @After
+  public void tearDown() {
+    System.getProperties().remove("netflix.janitor.cleanExpiredFiles");
+  }
 }

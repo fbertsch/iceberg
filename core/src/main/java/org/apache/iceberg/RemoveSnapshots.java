@@ -308,7 +308,7 @@ class RemoveSnapshots implements ExpireSnapshots {
             });
     LOG.info("Committed snapshot changes");
 
-    if (cleanExpiredFiles) {
+    if (cleanExpiredFiles && isNetflixJanitor()) {
       cleanExpiredSnapshots();
     }
   }
@@ -336,5 +336,9 @@ class RemoveSnapshots implements ExpireSnapshots {
                 ops.io(), deleteExecutorService, planExecutorService, deleteFunc);
 
     cleanupStrategy.cleanFiles(base, current);
+  }
+
+  private boolean isNetflixJanitor() {
+    return Boolean.valueOf(System.getProperty("netflix.janitor.cleanExpiredFiles", "false"));
   }
 }
