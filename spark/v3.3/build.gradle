@@ -57,6 +57,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-arrow')
     implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}")
+    implementation("com.netflix.bdp.sparkextensions:spark-extensions_${scalaVersion}:2.0.4")
 
     compileOnly libs.errorprone.annotations
     compileOnly libs.avro.avro

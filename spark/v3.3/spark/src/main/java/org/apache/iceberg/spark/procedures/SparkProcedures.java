@@ -39,6 +39,7 @@ public class SparkProcedures {
 
   private static Map<String, Supplier<ProcedureBuilder>> initProcedureBuilders() {
     ImmutableMap.Builder<String, Supplier<ProcedureBuilder>> mapBuilder = ImmutableMap.builder();
+    mapBuilder.put("get_tables", GetTablesProcedure::builder);
     mapBuilder.put("rollback_to_snapshot", RollbackToSnapshotProcedure::builder);
     mapBuilder.put("rollback_to_timestamp", RollbackToTimestampProcedure::builder);
     mapBuilder.put("set_current_snapshot", SetCurrentSnapshotProcedure::builder);
