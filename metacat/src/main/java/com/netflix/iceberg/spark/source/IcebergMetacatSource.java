@@ -3,6 +3,8 @@ package com.netflix.iceberg.spark.source;
 import java.util.List;
 import com.netflix.iceberg.metacat.MetacatSparkCatalog;
 import java.util.Map;
+
+import com.netflix.iceberg.metacat.NetflixSparkCatalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.source.IcebergSource;
 import org.apache.spark.sql.SparkSession;
@@ -60,7 +62,7 @@ public class IcebergMetacatSource extends IcebergSource {
     } else {
       // the identifier has more than one part. check whether it is a catalog
       String maybeCatalogName = nameParts.get(0);
-      MetacatSparkCatalog catalog = findCatalog(spark, maybeCatalogName);
+      NetflixSparkCatalog catalog = findCatalog(spark, maybeCatalogName);
       if (catalog != null) {
         // the first part was a catalog, load the table from the rest of the identifier
         return load(catalog, ident(nameParts.subList(1, nameParts.size())), readSchema);
@@ -87,15 +89,15 @@ public class IcebergMetacatSource extends IcebergSource {
 
   private static Table loadFromCurrent(SparkSession spark, Identifier ident, StructType readSchema) {
     CatalogPlugin current = spark.sessionState().catalogManager().currentCatalog();
-    if (current instanceof MetacatSparkCatalog) {
-      return load((MetacatSparkCatalog) current, ident, readSchema);
+    if (current instanceof NetflixSparkCatalog) {
+      return load((NetflixSparkCatalog) current, ident, readSchema);
     }
 
     throw new IllegalArgumentException(
         String.format("Cannot load table %s with non-Iceberg current catalog: %s", ident, current));
   }
 
-  private static Table load(MetacatSparkCatalog catalog, Identifier ident, StructType readSchema) {
+  private static Table load(NetflixSparkCatalog catalog, Identifier ident, StructType readSchema) {
     try {
       Preconditions.checkArgument(readSchema == null, "Read schema is not supported");
       return catalog.loadTable(ident);
@@ -104,12 +106,12 @@ public class IcebergMetacatSource extends IcebergSource {
     }
   }
 
-  private static MetacatSparkCatalog findCatalog(SparkSession session, String... catalogNames) {
+  private static NetflixSparkCatalog findCatalog(SparkSession session, String... catalogNames) {
     for (String catalog : catalogNames) {
       try {
         CatalogPlugin plugin = session.sessionState().catalogManager().catalog(catalog);
-        if (plugin instanceof MetacatSparkCatalog) {
-          return (MetacatSparkCatalog) plugin;
+        if (plugin instanceof NetflixSparkCatalog) {
+          return (NetflixSparkCatalog) plugin;
         }
       } catch (Exception e) {
         // try the next name
