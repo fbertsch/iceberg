@@ -28,12 +28,18 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
+import static org.apache.iceberg.TableProperties.GC_ENABLED;
+
 public class PropertyUtil {
 
   private PropertyUtil() {}
 
   public static boolean propertyAsBoolean(
       Map<String, String> properties, String property, boolean defaultValue) {
+    // Always allow janitors to do gc
+    if (NetflixPropertyUtil.netflixJanitorAlwaysAllowGc() && GC_ENABLED.equals(property)) {
+      return true;
+    }
     String value = properties.get(property);
     if (value != null) {
       return Boolean.parseBoolean(value);

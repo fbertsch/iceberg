@@ -34,6 +34,7 @@ import static org.apache.iceberg.TableProperties.MAX_SNAPSHOT_AGE_MS;
 import static org.apache.iceberg.TableProperties.MAX_SNAPSHOT_AGE_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.MIN_SNAPSHOTS_TO_KEEP;
 import static org.apache.iceberg.TableProperties.MIN_SNAPSHOTS_TO_KEEP_DEFAULT;
+import static org.apache.iceberg.util.NetflixPropertyUtil.netflixJanitorCleanExpiredFiles;
 
 import java.util.Collection;
 import java.util.List;
@@ -308,7 +309,7 @@ class RemoveSnapshots implements ExpireSnapshots {
             });
     LOG.info("Committed snapshot changes");
 
-    if (cleanExpiredFiles && isNetflixJanitor()) {
+    if (cleanExpiredFiles && netflixJanitorCleanExpiredFiles()) {
       cleanExpiredSnapshots();
     }
   }
@@ -336,9 +337,5 @@ class RemoveSnapshots implements ExpireSnapshots {
                 ops.io(), deleteExecutorService, planExecutorService, deleteFunc);
 
     cleanupStrategy.cleanFiles(base, current);
-  }
-
-  private boolean isNetflixJanitor() {
-    return Boolean.valueOf(System.getProperty("netflix.janitor.cleanExpiredFiles", "false"));
   }
 }

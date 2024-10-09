@@ -102,6 +102,7 @@ import static java.lang.String.format;
 import static org.apache.iceberg.BaseMetastoreTableOperations.CommitStatus.FAILURE;
 import static org.apache.iceberg.BaseMetastoreTableOperations.CommitStatus.SUCCESS;
 import static org.apache.iceberg.TableProperties.CLEANUP_METADATA_ON_COMMIT_FAILURE;
+import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.WRITE_METADATA_LOCATION;
 
 class MetacatClientOps extends BaseMetastoreTableOperations {
@@ -581,6 +582,9 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
     // Remove this so that new metadata won't be written to old location
     srcProps.remove(WRITE_METADATA_LOCATION);
     srcProps.put(ACL_PROPERTY_KEY, createCloneTableACLs(metadata, srcProps.get(ACL_PROPERTY_KEY)));
+
+    // Disable gc for cloned tables to avoid deleting files referenced by other tables with shared location
+    srcProps.put(GC_ENABLED, "false");
 
     Map<String, String> finalProps = ImmutableMap.copyOf(srcProps);
 
