@@ -12,11 +12,11 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 import com.netflix.bdp.sparkextensions.*;
+import scala.Tuple2;
 import scala.collection.JavaConverters;
 
 import java.util.ArrayList;
 import java.util.List;
-
 
 public class GetTablesProcedure extends BaseProcedure {
     private static final ProcedureParameter[] PARAMETERS =
@@ -27,7 +27,8 @@ public class GetTablesProcedure extends BaseProcedure {
     private static final StructType OUTPUT_TYPE =
             new StructType(
                     new StructField[]{
-                            new StructField("table_name", DataTypes.StringType, true, Metadata.empty())
+                            new StructField("table_or_view_name", DataTypes.StringType, true, Metadata.empty()),
+                            new StructField("is_table", DataTypes.BooleanType, true, Metadata.empty())
                     });
 
     private GetTablesProcedure(TableCatalog tableCatalog) {
@@ -60,11 +61,13 @@ public class GetTablesProcedure extends BaseProcedure {
         ArrayList<InternalRow> rows = new ArrayList<>();
 
         try {
-            scala.collection.Seq<String> scalaTableNames = GetTableProvider.getTablesFromLogicalPlan(spark, queryOrView);
-            List<String> tableNames = JavaConverters.seqAsJavaList(scalaTableNames);
+            scala.collection.Seq<Tuple2<String, Object>> scalaTableAndViewNames = GetTableProvider.getTablesFromLogicalPlan(spark, queryOrView);
+            List<Tuple2<String, Object>> tableAndViewNames = JavaConverters.seqAsJavaList(scalaTableAndViewNames);
 
-            for (String tableName : tableNames) {
-                InternalRow row = new GenericInternalRow(new Object[]{UTF8String.fromString(tableName)});
+            for (Tuple2<String, Object> entry : tableAndViewNames) {
+                String tableName = entry._1();
+                Boolean isTable = (Boolean) entry._2(); // Explicitly cast to Boolean
+                InternalRow row = new GenericInternalRow(new Object[]{UTF8String.fromString(tableName), isTable});
                 rows.add(row);
             }
         } catch (Exception e) {

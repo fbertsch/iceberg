@@ -24,7 +24,6 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
-
 public class TestGetTablesProcedure extends SparkExtensionsTestBase {
 
     public TestGetTablesProcedure(
@@ -44,8 +43,6 @@ public class TestGetTablesProcedure extends SparkExtensionsTestBase {
 
         String query = String.format("SELECT * FROM %s", tableName);
 
-        System.out.println(query);
-
         List<Object[]> output =
                 sql(
                         "CALL %s.system.get_tables("
@@ -53,16 +50,17 @@ public class TestGetTablesProcedure extends SparkExtensionsTestBase {
                         catalogName, query
                 );
 
+        Assert.assertEquals("Should return exactly one table", 1, output.size());
 
         String resultTableName = (String) output.get(0)[0];
-
-        Assert.assertEquals("Should return exactly one table", 1, output.size());
+        Boolean isTable = (Boolean) output.get(0)[1];
 
         String expectedTableName = tableName.toLowerCase();
         if (!expectedTableName.toLowerCase().startsWith(catalogName.toLowerCase())) {
             expectedTableName = String.format("%s.%s", catalogName, tableName).toLowerCase();
         }
         Assert.assertEquals("Should return the correct table name", expectedTableName, resultTableName.toLowerCase());
+        Assert.assertTrue("Result should be a table", isTable);
     }
 
     @Test
@@ -115,12 +113,14 @@ public class TestGetTablesProcedure extends SparkExtensionsTestBase {
 
             Set<String> actualTables = new HashSet<>();
             for (Object[] row : output) {
-                actualTables.add((String) row[0]);
+                String tableName = (String) row[0];
+                Boolean isTable = (Boolean) row[1];
+                Assert.assertTrue("Each result should be a table", isTable);
+                actualTables.add(tableName);
             }
 
             Assert.assertEquals("All tables should be detected", expectedTables, actualTables);
         } finally {
-
             sql("DROP TABLE IF EXISTS %s.default.customers", catalogName);
             sql("DROP TABLE IF EXISTS %s.default.orders", catalogName);
             sql("DROP TABLE IF EXISTS %s.default.products", catalogName);
