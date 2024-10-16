@@ -117,6 +117,8 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     this.async = async;
   }
 
+  private final String STREAMING_SNAPSHOT_POLLING_INTERVAL_MS_VALUE = "500";
+
   private final Boolean async;
 
   private Table table;
@@ -664,7 +666,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
   private StreamingQuery startStream() throws TimeoutException {
     return startStream(ImmutableMap.of(
-            SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS, "500",
+            SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS, STREAMING_SNAPSHOT_POLLING_INTERVAL_MS_VALUE,
             SparkReadOptions.ASYNC_MICRO_BATCH_PLANNING_ENABLED, Boolean.toString(async)
     ));
   }
@@ -674,7 +676,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         ImmutableMap.of(
                 key, value,
                 SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1",
-                SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS, "500",
+                SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS, STREAMING_SNAPSHOT_POLLING_INTERVAL_MS_VALUE,
                 SparkReadOptions.ASYNC_MICRO_BATCH_PLANNING_ENABLED, Boolean.toString(async)
         ));
   }
@@ -697,6 +699,14 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
   }
 
   private List<SimpleRecord> rowsAvailable(StreamingQuery query) {
+    // Sleep for the snapshot polling interval when the async planner is used
+    if (async){
+        try {
+            Thread.sleep(Long.parseLong(STREAMING_SNAPSHOT_POLLING_INTERVAL_MS_VALUE));
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
     query.processAllAvailable();
     return spark
         .sql("select * from " + MEMORY_TABLE)
