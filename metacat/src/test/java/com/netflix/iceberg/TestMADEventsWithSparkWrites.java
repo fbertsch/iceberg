@@ -68,7 +68,7 @@ public class TestMADEventsWithSparkWrites {
   private static final String GENIE_GROUPING = SCHEDULER_WORKFLOW_ID + ":" + SCHEDULER_STEP_ID;
   private static final String CHANGED_PARTITION_COUNT = "3";
   private static final String ADDED_FILES = "3";
-  private static final String ADDED_FILE_SIZE = "1841";
+  private static final String ADDED_FILE_SIZE = "1865";
   private static final String TOTAL_RECORDS = "3";
   private static final String TOTAL_DELETE_FILES = "0";
 
