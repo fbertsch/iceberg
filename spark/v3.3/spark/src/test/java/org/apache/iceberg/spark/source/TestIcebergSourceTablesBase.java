@@ -198,8 +198,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
       // each row must inherit snapshot_id and sequence_number
       rows.forEach(
           row -> {
-            row.put(2, 1L); // data sequence number
-            row.put(3, 1L); // file sequence number
+            row.put(2, 0L); // data sequence number
+            row.put(3, 0L); // file sequence number
             GenericData.Record file = (GenericData.Record) row.get("data_file");
             TestHelpers.asMetadataRecord(file);
             expected.add(row);
@@ -393,13 +393,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         // each row must inherit snapshot_id and sequence_number
         rows.forEach(
             row -> {
-              if (row.get("snapshot_id").equals(table.currentSnapshot().snapshotId())) {
-                row.put(2, 3L); // data sequence number
-                row.put(3, 3L); // file sequence number
-              } else {
-                row.put(2, 1L); // data sequence number
-                row.put(3, 1L); // file sequence number
-              }
+              row.put(2, 0L); // data sequence number
+              row.put(3, 0L); // file sequence number
               GenericData.Record file = (GenericData.Record) row.get("data_file");
               TestHelpers.asMetadataRecord(file);
               expected.add(row);
