@@ -254,6 +254,8 @@ public class SparkWriteConf {
     return confParser
             .booleanConf()
             .option(SparkSQLProperties.USE_DEFAULT_DISTRIBUTION_MODE_CHANGE)
+            .sessionConf(SparkSQLProperties.USE_DEFAULT_DISTRIBUTION_MODE_CHANGE)
+            .tableProperty(SparkSQLProperties.USE_DEFAULT_DISTRIBUTION_MODE_CHANGE)
             .defaultValue(true)
             .parse();
   }
