@@ -140,7 +140,9 @@ public class SparkParquetReaders {
         Types.StructType expected, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
       // match the expected struct's order
       Map<Integer, ParquetValueReader<?>> readersById = Maps.newHashMap();
+      Map<String, ParquetValueReader<?>> readersByName = Maps.newHashMap();
       Map<Integer, Type> typesById = Maps.newHashMap();
+      Map<String, Type> typesByName = Maps.newHashMap();
       Map<Integer, Integer> maxDefinitionLevelsById = Maps.newHashMap();
       List<Type> fields = struct.getFields();
       for (int i = 0; i < fields.size(); i += 1) {
@@ -153,6 +155,9 @@ public class SparkParquetReaders {
           if (idToConstant.containsKey(id)) {
             maxDefinitionLevelsById.put(id, fieldD);
           }
+        } else {
+          readersByName.put(fieldType.getName(), ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
+          typesByName.put(fieldType.getName(), fieldType);
         }
       }
 
@@ -179,10 +184,15 @@ public class SparkParquetReaders {
           reorderedFields.add(ParquetValueReaders.constant(false));
           types.add(null);
         } else {
-          ParquetValueReader<?> reader = readersById.get(id);
+          ParquetValueReader<?> reader = readersById.containsKey(id) ?
+                  readersById.get(id) : readersByName.get(field.name());
           if (reader != null) {
             reorderedFields.add(reader);
-            types.add(typesById.get(id));
+            if (typesById.containsKey(id)) {
+              types.add(typesById.get(id));
+            } else {
+              types.add(typesByName.get(field.name()));
+            }
           } else {
             reorderedFields.add(ParquetValueReaders.nulls());
             types.add(null);

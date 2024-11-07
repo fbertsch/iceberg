@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -97,7 +98,7 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
             TableIdentifier.of(Namespace.of(database()), tableName()),
             PRIMITIVE_SCHEMA,
             PartitionSpec.unpartitioned(),
-            ImmutableMap.of());
+            ImmutableMap.of(PARQUET_COMPRESSION, "gzip"));
     List<Record> records =
         Lists.newArrayList(
             createPrimitiveRecord(
@@ -136,7 +137,7 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
             TableIdentifier.of(Namespace.of(database()), tableName()),
             NESTED_SCHEMA,
             PartitionSpec.unpartitioned(),
-            ImmutableMap.of());
+            ImmutableMap.of(PARQUET_COMPRESSION, "gzip"));
 
     List<Record> records =
         Lists.newArrayList(

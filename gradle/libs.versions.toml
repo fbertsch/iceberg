@@ -53,6 +53,7 @@ netty-buffer-compat = "4.1.68.Final"
 object-client-bundle = "3.3.2"
 orc = "1.9.1"
 parquet = "1.12.2-nflx-55"
+parquet113 = { strictly = "1.13.1-nflx-2"}
 pig = "0.14.0"
 roaringbitmap = "0.9.47"
 s3mock-junit5 = "2.11.0"

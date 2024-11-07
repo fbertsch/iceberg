@@ -29,6 +29,7 @@ import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.SparkConf;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.internal.SQLConf;
 
 /**
  * A class for common Iceberg configs for Spark reads.
@@ -83,7 +84,11 @@ public class SparkReadConf {
   }
 
   public Long snapshotId() {
-    return confParser.longConf().option(SparkReadOptions.SNAPSHOT_ID).parseOptional();
+    return confParser
+            .longConf()
+            .option(SparkReadOptions.SNAPSHOT_ID)
+            .sessionConf(netflixSnapshotIdConfName())
+            .parseOptional();
   }
 
   public Long asOfTimestamp() {
@@ -148,6 +153,14 @@ public class SparkReadConf {
         .parse();
   }
 
+  public long streamingSnapshotPollingIntervalMs() {
+    return confParser
+            .longConf()
+            .option(SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS)
+            .defaultValue(SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS_DEFAULT)
+            .parse();
+  }
+
   public boolean parquetVectorizationEnabled() {
     return confParser
         .booleanConf()
@@ -187,16 +200,37 @@ public class SparkReadConf {
   }
 
   public Long splitSizeOption() {
-    return confParser.longConf().option(SparkReadOptions.SPLIT_SIZE).parseOptional();
+    return confParser.longConf()
+        .sessionConf(netflixTargetSizeConfName())
+        .option(SparkReadOptions.SPLIT_SIZE)
+        .parseOptional();
   }
 
   public long splitSize() {
     return confParser
         .longConf()
+        .sessionConf(netflixTargetSizeConfName())
         .option(SparkReadOptions.SPLIT_SIZE)
         .tableProperty(TableProperties.SPLIT_SIZE)
+        .defaultSessionConfName(SQLConf.FILES_MAX_PARTITION_BYTES().key())
         .defaultValue(TableProperties.SPLIT_SIZE_DEFAULT)
         .parse();
+  }
+
+  private String netflixTargetSizeConfName() {
+    String[] names = table.name().split("\\.", 2);
+    if (names.length > 1) {
+      return String.format("spark.netflix.%s.target-size", names[1]);
+    }
+    return "";
+  }
+
+  private String netflixSnapshotIdConfName() {
+    String[] names = table.name().split("\\.", 2);
+    if (names.length > 1) {
+      return String.format("spark.netflix.%s.snapshot-id", names[1]);
+    }
+    return "";
   }
 
   public Integer splitLookbackOption() {
@@ -325,5 +359,14 @@ public class SparkReadConf {
   private long driverMaxResultSize() {
     SparkConf sparkConf = spark.sparkContext().conf();
     return sparkConf.getSizeAsBytes(DRIVER_MAX_RESULT_SIZE, DRIVER_MAX_RESULT_SIZE_DEFAULT);
+  }
+
+  public boolean asyncMicroBatchPlanningEnabled() {
+    return confParser
+            .booleanConf()
+            .option(SparkReadOptions.ASYNC_MICRO_BATCH_PLANNING_ENABLED)
+            .sessionConf(SparkSQLProperties.ASYNC_MICRO_BATCH_PLANNING_ENABLED)
+            .defaultValue(SparkSQLProperties.ASYNC_MICRO_BATCH_PLANNING_ENABLED_DEFAULT)
+            .parse();
   }
 }

@@ -212,5 +212,17 @@ project(':client').name = 'bdp-iceberg-client'
 include ':bdp-iceberg'
 project(':bdp-iceberg').projectDir = file('bdp-iceberg')
 
-include ":bdp-iceberg-spark_${scalaVersion}"
-project(":bdp-iceberg-spark_${scalaVersion}").projectDir = file('bdp-iceberg-spark')
+include ':bdp-iceberg-spark'
+project(':bdp-iceberg-spark').name = 'bdp-iceberg-spark'
+
+if (sparkVersions.contains("3.3")) {
+  String sparkMajorVersion = '3.3'
+  include ":bdp-iceberg-spark_${sparkMajorVersion}_${scalaVersion}"
+  project(":bdp-iceberg-spark_${sparkMajorVersion}_${scalaVersion}").projectDir = file("bdp-iceberg-spark/v${sparkMajorVersion}")
+}
+
+if (sparkVersions.contains("3.5")) {
+  String sparkMajorVersion = '3.5'
+  include ":bdp-iceberg-spark_${sparkMajorVersion}_${scalaVersion}"
+  project(":bdp-iceberg-spark_${sparkMajorVersion}_${scalaVersion}").projectDir = file("bdp-iceberg-spark/v${sparkMajorVersion}")
+}

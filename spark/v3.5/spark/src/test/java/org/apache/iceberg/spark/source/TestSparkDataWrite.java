@@ -28,6 +28,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
@@ -53,6 +54,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.assertj.core.api.Assertions;
+import org.assertj.core.util.Maps;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -263,6 +265,7 @@ public class TestSparkDataWrite {
     File parent = temp.newFolder(format.toString());
     File location = new File(parent, "test");
     String targetLocation = locationWithBranch(location);
+    spark.conf().unset("spark.wap.id");
 
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
@@ -304,6 +307,52 @@ public class TestSparkDataWrite {
     table.refresh();
 
     Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);
+
+    List<SimpleRecord> actual =
+        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
+    Assert.assertEquals("Result rows should match", expected, actual);
+  }
+
+  @Test
+  public void testEmptyOverwriteInWap() throws IOException {
+    File parent = temp.newFolder(format.toString());
+    File location = new File(parent, "test");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
+    Map<String, String> tableProperties = Maps.newHashMap(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, "true");
+    Table table = tables.create(SCHEMA, spec, tableProperties, location.toString());
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+
+    List<SimpleRecord> expected = records;
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+
+    df.select("id", "data")
+        .write()
+        .format("iceberg")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
+        .save(location.toString());
+
+    spark.conf().set("spark.wap.id", "1");
+    Dataset<Row> empty = spark.createDataFrame(ImmutableList.of(), SimpleRecord.class);
+    empty
+        .select("id", "data")
+        .write()
+        .format("iceberg")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Overwrite)
+        .option("overwrite-mode", "dynamic")
+        .save(location.toString());
+
+    table.refresh();
+    spark.conf().unset("spark.wap.id");
+
+    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
 
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();

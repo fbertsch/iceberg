@@ -39,6 +39,7 @@ public class SparkProcedures {
 
   private static Map<String, Supplier<ProcedureBuilder>> initProcedureBuilders() {
     ImmutableMap.Builder<String, Supplier<ProcedureBuilder>> mapBuilder = ImmutableMap.builder();
+    mapBuilder.put("get_tables", GetTablesProcedure::builder);
     mapBuilder.put("rollback_to_snapshot", RollbackToSnapshotProcedure::builder);
     mapBuilder.put("rollback_to_timestamp", RollbackToTimestampProcedure::builder);
     mapBuilder.put("set_current_snapshot", SetCurrentSnapshotProcedure::builder);
@@ -56,6 +57,8 @@ public class SparkProcedures {
     mapBuilder.put("create_changelog_view", CreateChangelogViewProcedure::builder);
     mapBuilder.put("rewrite_position_delete_files", RewritePositionDeleteFilesProcedure::builder);
     mapBuilder.put("fast_forward", FastForwardBranchProcedure::builder);
+    mapBuilder.put("nf_clone_table", NfCloneTableProcedure::builder);
+    mapBuilder.put("revert_delete", RevertDeleteProcedure::builder);
     return mapBuilder.build();
   }
 

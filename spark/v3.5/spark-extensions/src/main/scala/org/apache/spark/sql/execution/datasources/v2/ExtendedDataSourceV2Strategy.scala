@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import com.netflix.bdp.sender.DeleteEventSender
 import org.apache.iceberg.spark.BaseCatalog
 import org.apache.iceberg.spark.Spark3Util
 import org.apache.iceberg.spark.SparkCatalog

@@ -73,6 +73,9 @@ public class SparkReadOptions {
   public static final String STREAMING_SKIP_OVERWRITE_SNAPSHOTS =
       "streaming-skip-overwrite-snapshots";
   public static final boolean STREAMING_SKIP_OVERWRITE_SNAPSHOTS_DEFAULT = false;
+  public static final String STREAMING_SNAPSHOT_POLLING_INTERVAL_MS =
+          "streaming-snapshot-polling-interval-ms";
+  public static final long STREAMING_SNAPSHOT_POLLING_INTERVAL_MS_DEFAULT = 30000L;
 
   // Controls whether to report locality information to Spark while allocating input partitions
   public static final String LOCALITY = "locality";
@@ -95,4 +98,6 @@ public class SparkReadOptions {
   public static final String TIMESTAMP_AS_OF = "timestampAsOf";
 
   public static final String AGGREGATE_PUSH_DOWN_ENABLED = "aggregate-push-down-enabled";
+
+  public static final String ASYNC_MICRO_BATCH_PLANNING_ENABLED = "async-micro-batch-planning-enabled";
 }

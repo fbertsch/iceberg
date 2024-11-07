@@ -19,8 +19,11 @@
 package org.apache.iceberg.spark;
 
 import java.util.List;
+import java.util.Map;
+import org.apache.iceberg.FieldMetadataParser;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -45,7 +48,15 @@ import org.apache.spark.sql.types.TimestampNTZType$;
 import org.apache.spark.sql.types.TimestampType$;
 
 class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
-  TypeToSparkType() {}
+  private final Map<Integer, Metadata> fieldMetadata;
+
+  TypeToSparkType(String fieldMetadataJson) {
+    if (fieldMetadataJson != null) {
+      this.fieldMetadata = parseMetadata(fieldMetadataJson);
+    } else {
+      this.fieldMetadata = ImmutableMap.of();
+    }
+  }
 
   public static final String METADATA_COL_ATTR_KEY = "__metadata_col";
 
@@ -131,10 +142,33 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
   }
 
   private Metadata fieldMetadata(int fieldId) {
+    Metadata metadata = fieldMetadata.getOrDefault(fieldId, Metadata.empty());
+
     if (MetadataColumns.metadataFieldIds().contains(fieldId)) {
-      return new MetadataBuilder().putBoolean(METADATA_COL_ATTR_KEY, true).build();
+      return new MetadataBuilder()
+          .withMetadata(metadata)
+          .putBoolean(METADATA_COL_ATTR_KEY, true)
+          .build();
     }
 
-    return Metadata.empty();
+    return metadata;
+  }
+
+  private static Map<Integer, Metadata> parseMetadata(String fieldMetadataJson) {
+    if (fieldMetadataJson == null) {
+      return ImmutableMap.of();
+    }
+
+    Map<Integer, String> fieldMetadata = FieldMetadataParser.fromJson(fieldMetadataJson);
+    if (fieldMetadata == null) {
+      return ImmutableMap.of();
+    }
+
+    ImmutableMap.Builder<Integer, Metadata> idToMetadataBuilder = ImmutableMap.builder();
+    for (Map.Entry<Integer, String> fieldEntry : fieldMetadata.entrySet()) {
+      idToMetadataBuilder.put(fieldEntry.getKey(), Metadata.fromJson(fieldEntry.getValue()));
+    }
+
+    return idToMetadataBuilder.build();
   }
 }

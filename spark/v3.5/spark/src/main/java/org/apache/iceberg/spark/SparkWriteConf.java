@@ -37,6 +37,7 @@ import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.DEL
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.IsolationLevel;
@@ -85,6 +86,7 @@ public class SparkWriteConf {
   private final RuntimeConfig sessionConf;
   private final Map<String, String> writeOptions;
   private final SparkConfParser confParser;
+  private final NetflixConf netflixConf;
 
   public SparkWriteConf(SparkSession spark, Table table, Map<String, String> writeOptions) {
     this(spark, table, null, writeOptions);
@@ -98,6 +100,7 @@ public class SparkWriteConf {
     this.sessionConf = spark.conf();
     this.writeOptions = writeOptions;
     this.confParser = new SparkConfParser(spark, table, writeOptions);
+    this.netflixConf = new NetflixConf(sessionConf);
   }
 
   public boolean checkNullability() {
@@ -243,6 +246,8 @@ public class SparkWriteConf {
 
   public Map<String, String> extraSnapshotMetadata() {
     Map<String, String> extraSnapshotMetadata = Maps.newHashMap();
+    Optional.ofNullable(writeOptions.get("depends-on-tables"))
+        .ifPresent(v -> extraSnapshotMetadata.put("dependsOnTables", v));
 
     writeOptions.forEach(
         (key, value) -> {
@@ -286,8 +291,19 @@ public class SparkWriteConf {
       DistributionMode mode = DistributionMode.fromName(modeName);
       return adjustWriteDistributionMode(mode);
     } else {
+      if (!useIceberg12DefaultDistributionModeChange()) {
+        return table.sortOrder().isSorted() ? RANGE : NONE;
+      }
       return defaultWriteDistributionMode();
     }
+  }
+
+  private boolean useIceberg12DefaultDistributionModeChange(){
+    return confParser
+            .booleanConf()
+            .option(SparkSQLProperties.USE_DEFAULT_DISTRIBUTION_MODE_CHANGE)
+            .defaultValue(true)
+            .parse();
   }
 
   private DistributionMode adjustWriteDistributionMode(DistributionMode mode) {
@@ -403,7 +419,7 @@ public class SparkWriteConf {
       DistributionMode mergeMode = DistributionMode.fromName(mergeModeName);
       return adjustWriteDistributionMode(mergeMode);
 
-    } else if (table.spec().isPartitioned()) {
+    } else if (table.spec().isPartitioned() && useIceberg12DefaultDistributionModeChange()) {
       return HASH;
 
     } else {
@@ -457,20 +473,20 @@ public class SparkWriteConf {
     if (wapEnabled()) {
       String wapId = wapId();
       String wapBranch =
-          confParser.stringConf().sessionConf(SparkSQLProperties.WAP_BRANCH).parseOptional();
+              confParser.stringConf().sessionConf(SparkSQLProperties.WAP_BRANCH).parseOptional();
 
       ValidationException.check(
-          wapId == null || wapBranch == null,
-          "Cannot set both WAP ID and branch, but got ID [%s] and branch [%s]",
-          wapId,
-          wapBranch);
+              wapId == null || wapBranch == null,
+              "Cannot set both WAP ID and branch, but got ID [%s] and branch [%s]",
+              wapId,
+              wapBranch);
 
       if (wapBranch != null) {
         ValidationException.check(
-            branch == null,
-            "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [%s]",
-            branch,
-            wapBranch);
+                branch == null,
+                "Cannot write to both branch and WAP branch, but got branch [%s] and WAP branch [%s]",
+                branch,
+                wapBranch);
 
         return wapBranch;
       }
@@ -707,5 +723,9 @@ public class SparkWriteConf {
 
   private double shuffleCompressionRatio(FileFormat outputFileFormat, String outputCodec) {
     return SparkCompressionUtil.shuffleCompressionRatio(spark, outputFileFormat, outputCodec);
+  }
+
+  public NetflixConf netflixConf() {
+    return netflixConf;
   }
 }

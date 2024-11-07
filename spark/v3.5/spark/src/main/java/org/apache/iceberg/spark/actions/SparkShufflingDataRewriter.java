@@ -182,7 +182,7 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
     Preconditions.checkArgument(
         value > 0, "'%s' is set to %s but must be > 0", SHUFFLE_PARTITIONS_PER_FILE, value);
     Preconditions.checkArgument(
-        value == 1 || Spark3Util.extensionsEnabled(spark()),
+        value == 1 || Spark3Util.extensionsEnabled(),
         "Using '%s' requires enabling Iceberg Spark session extensions",
         SHUFFLE_PARTITIONS_PER_FILE);
     return value;

@@ -61,11 +61,11 @@ import org.apache.spark.sql.types.TimestampType;
 import org.apache.spark.unsafe.types.CalendarInterval;
 import org.apache.spark.unsafe.types.UTF8String;
 
-class StructInternalRow extends InternalRow {
+public class StructInternalRow extends InternalRow {
   private final Types.StructType type;
   private StructLike struct;
 
-  StructInternalRow(Types.StructType type) {
+  public StructInternalRow(Types.StructType type) {
     this.type = type;
   }
 

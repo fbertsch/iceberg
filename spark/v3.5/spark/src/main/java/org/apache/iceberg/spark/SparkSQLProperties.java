@@ -46,6 +46,11 @@ public class SparkSQLProperties {
   // Controls write distribution mode
   public static final String DISTRIBUTION_MODE = "spark.sql.iceberg.distribution-mode";
 
+  // Controls the new default Spark write distribution mode changes for Spark 3.3 and Iceberg 1.2.x
+  // Upstream PR : https://github.com/apache/iceberg/pull/6828
+  public static final String USE_DEFAULT_DISTRIBUTION_MODE_CHANGE =
+          "spark.sql.iceberg.netflix.use-iceberg-12-default-write-distribution";
+
   // Controls the WAP ID used for write-audit-publish workflow.
   // When set, new snapshots will be staged with this ID in snapshot summary.
   public static final String WAP_ID = "spark.wap.id";
@@ -54,7 +59,11 @@ public class SparkSQLProperties {
   // When set, new snapshots will be committed to this branch.
   public static final String WAP_BRANCH = "spark.wap.branch";
 
-  // Controls write compress options
+   public static final String ASYNC_MICRO_BATCH_PLANNING_ENABLED =
+          "spark.sql.iceberg.async-micro-batch-planning-enabled";
+   public static final boolean ASYNC_MICRO_BATCH_PLANNING_ENABLED_DEFAULT = false;
+
+   // Controls write compress options
   public static final String COMPRESSION_CODEC = "spark.sql.iceberg.compression-codec";
   public static final String COMPRESSION_LEVEL = "spark.sql.iceberg.compression-level";
   public static final String COMPRESSION_STRATEGY = "spark.sql.iceberg.compression-strategy";

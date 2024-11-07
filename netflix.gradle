@@ -59,6 +59,8 @@ subprojects {
     nebulaPublishing {
         skipArtifactory = scalaVersion == '2.12' && [
                 'bdp-iceberg-client',
+                // Skip the bdp-iceberg-spark parent artifact since it is non-spark specific version
+                'bdp-iceberg-spark',
                 'bdp-iceberg',
                 'bdp-view',
                 'iceberg-common',
@@ -92,7 +94,7 @@ subprojects {
     afterEvaluate {
         tasks.jar.dependsOn tasks.javadocJar
         tasks.jar.dependsOn tasks.testJar
-        if (!['iceberg-flink', 'iceberg-spark'].contains(project.name)) {
+        if (!['iceberg-flink', 'iceberg-spark','bdp-iceberg-spark'].contains(project.name)) {
             publishing {
                 publications {
                     nebula(MavenPublication) {

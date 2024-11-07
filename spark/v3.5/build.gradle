@@ -30,9 +30,15 @@ configure(sparkProjects) {
   configurations {
     all {
       resolutionStrategy {
-        force "com.fasterxml.jackson.module:jackson-module-scala_${scalaVersion}:${libs.versions.jackson215.get()}"
-        force "com.fasterxml.jackson.core:jackson-databind:${libs.versions.jackson215.get()}"
-        force "com.fasterxml.jackson.core:jackson-core:${libs.versions.jackson215.get()}"
+        eachDependency { DependencyResolveDetails details ->
+          if (details.requested.group.startsWith('com.fasterxml.jackson.')) {
+            def jacksonVersion = libs.versions.jackson215.get()
+            details.useVersion jacksonVersion
+            details.because "${project.name} is using useVersion to set this dependency version to ${jacksonVersion}"
+          }
+        }
+        force "org.apache.parquet:parquet-hadoop:${libs.versions.parquet113.get()}"
+        force "org.apache.parquet:parquet-column:${libs.versions.parquet113.get()}"
       }
     }
   }
@@ -59,6 +65,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-arrow')
     implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}")
+    implementation("com.netflix.bdp.sparkextensions:spark-extensions_${scalaVersion}:2.1.0")
 
     compileOnly libs.errorprone.annotations
     compileOnly libs.avro.avro
@@ -136,6 +143,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}")
     implementation libs.roaringbitmap
 
+    compileOnly libs.bdp.lineage.logging
     compileOnly "org.scala-lang:scala-library"
     compileOnly project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly project(':iceberg-api')
@@ -152,6 +160,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
       exclude group: 'org.roaringbitmap'
     }
     compileOnly libs.errorprone.annotations
+    compileOnly libs.s3authsigncde.s3.auth.sign.common
 
     testImplementation project(path: ':iceberg-data')
     testImplementation project(path: ':iceberg-parquet')
@@ -227,6 +236,8 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
       exclude group: 'net.snowflake' , module: 'snowflake-jdbc'
     }
 
+    integrationImplementation libs.bdp.lineage.logging
+    integrationImplementation 'com.netflix.bdp:metrics:0.3.4'
     integrationImplementation "org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}"
     integrationImplementation "org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive35.get()}"
     integrationImplementation libs.junit.vintage.engine

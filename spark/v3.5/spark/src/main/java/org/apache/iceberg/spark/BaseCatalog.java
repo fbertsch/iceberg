@@ -28,7 +28,7 @@ import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureCatalog;
 
-abstract class BaseCatalog
+public abstract class BaseCatalog
     implements StagingTableCatalog,
         ProcedureCatalog,
         SupportsNamespaces,

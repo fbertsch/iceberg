@@ -1272,7 +1272,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     if (mode(table) == COPY_ON_WRITE) {
-      validateCopyOnWrite(currentSnapshot, "3", "4", "1");
+      validateCopyOnWrite(currentSnapshot, "4", "4", "1");
     } else {
       validateMergeOnRead(currentSnapshot, "3", "3", null);
     }

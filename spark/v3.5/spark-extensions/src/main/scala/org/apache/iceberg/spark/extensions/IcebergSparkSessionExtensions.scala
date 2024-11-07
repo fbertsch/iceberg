@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark.extensions
 
+import org.apache.iceberg.spark.Spark3Util
 import org.apache.spark.sql.SparkSessionExtensions
 import org.apache.spark.sql.catalyst.analysis.ProcedureArgumentCoercion
 import org.apache.spark.sql.catalyst.analysis.ResolveProcedures
@@ -41,5 +42,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
 
     // planner extensions
     extensions.injectPlannerStrategy { spark => ExtendedDataSourceV2Strategy(spark) }
+
+    Spark3Util.setExtensionsEnabled()
   }
 }
