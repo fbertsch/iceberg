@@ -128,7 +128,9 @@ dependencies {
     exclude group: 'com.netflix.spectator'
   }
 
-  shadow(project(':iceberg-metacat')) {
+  // TODO: This dependency should not pin to a Spark version and should support cross-builds
+  //  for mulitple versions of Spark like 3.3 and 3.5
+  shadow(project(':iceberg-spark:iceberg-metacat-spark-3.3')) {
     exclude group: 'org.tukaani'
     exclude group: 'com.thoughtworks.paranamer'
     exclude group: 'com.netflix.iceberg', module: 'iceberg-spark-3.3_2.12'
@@ -145,7 +147,9 @@ dependencies {
     exclude group: 'com.netflix.ksgateway'
   }
 
-  integrationCompileOnly(project(':iceberg-metacat'))
+  // TODO: This dependency should not pin to a Spark version and should support cross-builds
+  //  for mulitple versions of Spark like 3.3 and 3.5
+  integrationCompileOnly(project(':iceberg-spark:iceberg-metacat-spark-3.3'))
   integrationCompileOnly(project(':iceberg-parquet'))
   integrationCompileOnly(libs.hadoop2.client)
   integrationCompileOnly("org.apache.hadoop:hadoop-mapreduce-client-core")

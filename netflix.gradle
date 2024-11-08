@@ -72,6 +72,8 @@ subprojects {
                 'iceberg-dell',
                 'iceberg-data',
                 'iceberg-metacat',
+                'iceberg-metacat-spark-3.3',
+                'iceberg-metacat-spark-3.5',
                 'iceberg-gcp',
                 'iceberg-arrow',
                 'iceberg-hive-metastore',
@@ -94,7 +96,7 @@ subprojects {
     afterEvaluate {
         tasks.jar.dependsOn tasks.javadocJar
         tasks.jar.dependsOn tasks.testJar
-        if (!['iceberg-flink', 'iceberg-spark','bdp-iceberg-spark'].contains(project.name)) {
+        if (!['iceberg-flink', 'iceberg-spark','bdp-iceberg-spark','iceberg-metacat-spark-3.3','iceberg-metacat-spark-3.5'].contains(project.name)) {
             publishing {
                 publications {
                     nebula(MavenPublication) {

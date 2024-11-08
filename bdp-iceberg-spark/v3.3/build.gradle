@@ -40,7 +40,7 @@ dependencies {
     exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
   }
 
-  shadow(project(':iceberg-metacat')) {
+  shadow(project(":iceberg-spark:iceberg-metacat-spark-${sparkMajorVersion}")) {
     // exclude transitive dependencies provided by the Spark distribution
     exclude group: 'org.slf4j'
     exclude group: 'org.codehaus.jackson'

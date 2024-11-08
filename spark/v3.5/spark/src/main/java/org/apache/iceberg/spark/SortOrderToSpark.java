@@ -27,11 +27,11 @@ import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.NullOrdering;
 import org.apache.spark.sql.connector.expressions.SortOrder;
 
-class SortOrderToSpark implements SortOrderVisitor<SortOrder> {
+public class SortOrderToSpark implements SortOrderVisitor<SortOrder> {
 
   private final Map<Integer, String> quotedNameById;
 
-  SortOrderToSpark(Schema schema) {
+  public SortOrderToSpark(Schema schema) {
     this.quotedNameById = SparkSchemaUtil.indexQuotedNameById(schema);
   }
 

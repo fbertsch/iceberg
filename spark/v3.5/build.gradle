@@ -24,6 +24,7 @@ def sparkProjects = [
     project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}"),
     project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}"),
     project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersion}"),
+    project(":iceberg-spark:iceberg-metacat-spark-${sparkMajorVersion}"),
 ]
 
 configure(sparkProjects) {
@@ -305,3 +306,6 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
   }
 }
 
+project(":iceberg-spark:iceberg-metacat-spark-${sparkMajorVersion}") {
+  apply from: file("$projectDir/build.gradle")
+}
