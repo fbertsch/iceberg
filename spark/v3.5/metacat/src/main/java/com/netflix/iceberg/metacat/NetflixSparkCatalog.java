@@ -342,6 +342,30 @@ public class NetflixSparkCatalog extends BaseCatalog implements ViewCatalog {
     return viewCatalog.createView(ident, sql, currentCatalog, currentNamespace, schema, queryColumnNames, columnAliases, columnComments, properties);
   }
 
+  /**
+   * ReplaceView() is not part of the OSS ViewCatalog Interface but has been added as a default method in it by Netflix.
+   * The default method implementation has a race condition and is not atomic, hence Netflix Catalog implementation
+   * overrides it to make it atomic, and also copy over old view's relevant metadata, like properties.
+   */
+  @SuppressWarnings("unused")
+  public void replaceView(
+          Identifier ident,
+          String sql,
+          String currentCatalog,
+          String[] currentNamespace,
+          StructType schema,
+          String[] queryColumnNames,
+          String[] columnAliases,
+          String[] columnComments,
+          Map<String, String> properties) throws NoSuchViewException, NoSuchNamespaceException {
+    if(viewCatalog instanceof CommonViewCatalog) {
+      ((CommonViewCatalog) viewCatalog).replaceView(ident, sql, currentCatalog, currentNamespace, schema,
+              queryColumnNames, columnAliases, columnComments, properties);
+    } else {
+      throw new UnsupportedOperationException("replaceView is not supported by the current ViewCatalog implementation");
+    }
+  }
+
   @Override
   public View alterView(Identifier ident, ViewChange... changes) throws NoSuchViewException {
     return viewCatalog.alterView(ident, changes);

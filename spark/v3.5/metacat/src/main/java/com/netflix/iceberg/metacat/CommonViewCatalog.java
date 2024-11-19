@@ -63,7 +63,34 @@ public class CommonViewCatalog implements ViewCatalog {
     }
   }
 
-
+  /**
+   * ReplaceView() is not part of the OSS ViewCatalog Interface but has been added as a default method in it by Netflix.
+   * The default method implementation has a race condition and is not atomic, hence Netflix Catalog implementation
+   * overrides it to make it atomic, and also copy over old view's relevant metadata, like properties.
+   */
+  @SuppressWarnings("unused")
+  public void replaceView(
+      Identifier ident,
+      String sql,
+      String currentCatalog,
+      String[] currentNamespace,
+      StructType schema,
+      String[] queryColumnNames,
+      String[] columnAliases,
+      String[] columnComments,
+      Map<String, String> properties) throws NoSuchViewException, NoSuchNamespaceException {
+    String viewIdentifier = buildViewIdentifier(ident);
+    ViewDefinition viewDefinition = ViewDefinition.of(
+            sql,
+            SparkSchemaUtil.convert(schema),
+            currentCatalog,
+            Arrays.asList(currentNamespace));
+    try {
+      lazyViews().replace(viewIdentifier, viewDefinition, properties);
+    } catch (NotFoundException e) {
+      throw new NoSuchViewException(ident);
+    }
+  }
 
   @Override
   public View alterView(Identifier ident, ViewChange... changes) throws NoSuchViewException {
@@ -102,7 +129,7 @@ public class CommonViewCatalog implements ViewCatalog {
 
   @Override
   public Identifier[] listViews(String... namespace) throws NoSuchNamespaceException {
-    throw new UnsupportedOperationException("Not implemented by Netflix");
+    return new Identifier[0];
   }
 
   @Override
