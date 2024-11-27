@@ -38,7 +38,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 
 /** Base class logic for files metadata tables */
-abstract class BaseFilesTable extends BaseMetadataTable {
+public abstract class BaseFilesTable extends BaseMetadataTable {
 
   BaseFilesTable(Table table, String name) {
     super(table, name);
@@ -132,7 +132,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     }
   }
 
-  static class ManifestReadTask extends BaseFileScanTask implements DataTask {
+  public static class ManifestReadTask extends BaseFileScanTask implements DataTask {
 
     private final FileIO io;
     private final Map<Integer, PartitionSpec> specsById;
@@ -234,7 +234,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     }
 
     @VisibleForTesting
-    ManifestFile manifest() {
+    public ManifestFile manifest() {
       return manifest;
     }
   }

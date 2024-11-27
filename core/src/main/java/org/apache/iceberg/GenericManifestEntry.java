@@ -24,7 +24,7 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.types.Types;
 
-class GenericManifestEntry<F extends ContentFile<F>>
+public class GenericManifestEntry<F extends ContentFile<F>>
     implements ManifestEntry<F>, IndexedRecord, SpecificData.SchemaConstructable, StructLike {
   private final org.apache.avro.Schema schema;
   private Status status = Status.EXISTING;

@@ -40,7 +40,7 @@ import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.StructProjection;
 
 /** Base class logic for entries metadata tables */
-abstract class BaseEntriesTable extends BaseMetadataTable {
+public abstract class BaseEntriesTable extends BaseMetadataTable {
 
   BaseEntriesTable(Table table, String name) {
     super(table, name);
@@ -94,7 +94,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
                 table, manifest, projectedSchema, schemaString, specString, residuals));
   }
 
-  static class ManifestReadTask extends BaseFileScanTask implements DataTask {
+  public static class ManifestReadTask extends BaseFileScanTask implements DataTask {
     private final Schema projection;
     private final Schema fileProjection;
     private final Schema dataTableSchema;
