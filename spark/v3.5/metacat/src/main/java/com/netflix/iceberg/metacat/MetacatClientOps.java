@@ -716,6 +716,9 @@ class MetacatClientOps extends BaseMetastoreTableOperations implements Closeable
         if (io().newInputFile(uncommittedMetadata.location()).exists()) {
           throw new AlreadyExistsException("Table already exists:" + identifier);
         }
+      } else if (SecurityUtil.isUseSecureLocation(conf)) {
+        // For presto to create table in secure location
+        uncommittedMetadata = updateSecureLocation(uncommittedMetadata);
       }
     }
 
