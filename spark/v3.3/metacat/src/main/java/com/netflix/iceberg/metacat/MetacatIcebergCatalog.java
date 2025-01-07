@@ -42,6 +42,7 @@ public class MetacatIcebergCatalog extends BaseMetastoreCatalog implements Suppo
   public static final String INTERNAL_PROP_METADATA_LOC = INTERNAL_PROP_PREFIX + "metadata_location";
   public static final String INTERNAL_PROP_AUTH_POLICY = INTERNAL_PROP_PREFIX + "auth_policy";
   public static final String INTERNAL_PROP_MIGRATED_DATA_LOCATION = INTERNAL_PROP_PREFIX + MIGRATED_DATA_LOCATION;
+  public static final String INTERNAL_OWNER_USER_ID = INTERNAL_PROP_PREFIX + "owner_user_id";
   public static final String PARENT_CHILD_RELATION_INFO = "parentChildRelationInfo";
   public static final String PARENT_TABLE_NAME = "parent_table_name";
   public static final String INTERNAL_PROP_PARENT_TABLE_NAME = INTERNAL_PROP_PREFIX + PARENT_TABLE_NAME;

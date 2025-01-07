@@ -85,6 +85,7 @@ import static com.netflix.iceberg.metacat.DefinitionMetadata.setParentChildRelat
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CONF_EXPOSE_INTERNAL_STATES;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CONF_INCLUDE_STS_CREDS_PROPS;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_INHERIT_ACL;
+import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_OWNER_USER_ID;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_AUTH_POLICY;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_METADATA_LOC;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_MIGRATED_DATA_LOCATION;
@@ -242,6 +243,9 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
           if(!Strings.isNullOrEmpty(parentUuid)) {
             builder.put(INTERNAL_PROP_PARENT_TABLE_UUID, parentUuid);
           }
+
+          String ownerUserId = DefinitionMetadata.getOwnerUserId(tableInfo.getDefinitionMetadata());
+          builder.put(INTERNAL_OWNER_USER_ID, ownerUserId);
 
           finalProperties.putAll(builder.build());
         }

@@ -38,6 +38,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 public class MetacatUtil {
 
   public static final String OWNER = "owner";
+  public static final String USER_ID = "userId";
   public static final String NETFLIX_OWNER = "netflix.owner";
   public static final String SIMPLE_GET_USER_ENABLED = "netflix.iceberg.metacat.simple-get-user-enabled";
 

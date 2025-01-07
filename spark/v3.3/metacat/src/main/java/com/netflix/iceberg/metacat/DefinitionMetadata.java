@@ -40,6 +40,7 @@ import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.PARENT_TABLE_NAM
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.PARENT_TABLE_UUID;
 import static com.netflix.iceberg.metacat.MetacatUtil.NETFLIX_OWNER;
 import static com.netflix.iceberg.metacat.MetacatUtil.OWNER;
+import static com.netflix.iceberg.metacat.MetacatUtil.USER_ID;
 
 class DefinitionMetadata {
   // security properties
@@ -123,6 +124,19 @@ class DefinitionMetadata {
     }
     return null;
   }
+
+  /**
+   * Returns the userId stored under the owner object in the definitionMetadata
+   * @return Returns userId string if the field exists otherwise return empty string
+   */
+  public static String getOwnerUserId(ObjectNode definitionMetadata) {
+    if (definitionMetadata != null && definitionMetadata.hasNonNull(OWNER)) {
+      JsonNode definitionMetadataOwner = definitionMetadata.get(OWNER);
+      return definitionMetadataOwner.get(USER_ID).asText("");
+    }
+    return "";
+  }
+
   static boolean isSecure(ObjectNode definitionMetadata) {
    return definitionMetadata != null && definitionMetadata.has(SECURE_FLAG) && definitionMetadata.get(SECURE_FLAG).asBoolean();
   }
