@@ -58,10 +58,14 @@ import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.auth.NetflixAuthUtil;
+import org.apache.iceberg.rest.auth.NetflixE2ETokenHandler;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.iceberg.rest.auth.NetflixAuthUtil.isE2ETokenEnabled;
 
 /** An HttpClient for usage with the REST catalog. */
 public class HTTPClient implements RESTClient {
@@ -89,6 +93,7 @@ public class HTTPClient implements RESTClient {
   private final String uri;
   private final CloseableHttpClient httpClient;
   private final ObjectMapper mapper;
+  private final NetflixE2ETokenHandler e2eTokenHandler;
 
   private HTTPClient(
       String uri,
@@ -117,6 +122,12 @@ public class HTTPClient implements RESTClient {
 
     int maxRetries = PropertyUtil.propertyAsInt(properties, REST_MAX_RETRIES, 5);
     clientBuilder.setRetryStrategy(new ExponentialHttpRequestRetryStrategy(maxRetries));
+
+    if (isE2ETokenEnabled(properties)) {
+      this.e2eTokenHandler = new NetflixE2ETokenHandler(properties);
+    } else {
+      this.e2eTokenHandler = null;
+    }
 
     this.httpClient = clientBuilder.build();
   }
@@ -401,6 +412,10 @@ public class HTTPClient implements RESTClient {
     // bodied request.
     request.setHeader(HttpHeaders.CONTENT_TYPE, bodyMimeType);
     requestHeaders.forEach(request::setHeader);
+
+    if (e2eTokenHandler != null) {
+      e2eTokenHandler.addRequestHeaders(request, httpClient, mapper);
+    }
   }
 
   @Override
@@ -450,6 +465,8 @@ public class HTTPClient implements RESTClient {
     if (connectionConfig != null) {
       connectionManagerBuilder.setDefaultConnectionConfig(connectionConfig);
     }
+
+    NetflixAuthUtil.initMetatronSSLConnectionSocketFactory(connectionManagerBuilder, properties);
 
     return connectionManagerBuilder
         .useSystemProperties()
