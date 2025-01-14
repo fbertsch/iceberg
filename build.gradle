@@ -324,6 +324,8 @@ project(':iceberg-core') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
+    implementation 'netflix:metatron-ipc-common:latest.release'
+
     testImplementation libs.jetty.servlet
     testImplementation libs.jetty.server
     testImplementation libs.mockserver.netty

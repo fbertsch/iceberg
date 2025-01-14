@@ -26,14 +26,18 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequest;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
+import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
@@ -54,10 +58,14 @@ import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.auth.NetflixAuthUtil;
+import org.apache.iceberg.rest.auth.NetflixE2ETokenHandler;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.iceberg.rest.auth.NetflixAuthUtil.isE2ETokenEnabled;
 
 /** An HttpClient for usage with the REST catalog. */
 public class HTTPClient implements RESTClient {
@@ -72,21 +80,34 @@ public class HTTPClient implements RESTClient {
   static final String CLIENT_GIT_COMMIT_SHORT_HEADER = "X-Client-Git-Commit-Short";
 
   private static final String REST_MAX_RETRIES = "rest.client.max-retries";
+  private static final String REST_MAX_CONNECTIONS = "rest.client.max-connections";
+  private static final int REST_MAX_CONNECTIONS_DEFAULT = 100;
+  private static final String REST_MAX_CONNECTIONS_PER_ROUTE = "rest.client.connections-per-route";
+  private static final int REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT = 100;
+
+  @VisibleForTesting
+  static final String REST_CONNECTION_TIMEOUT_MS = "rest.client.connection-timeout-ms";
+
+  @VisibleForTesting static final String REST_SOCKET_TIMEOUT_MS = "rest.client.socket-timeout-ms";
 
   private final String uri;
   private final CloseableHttpClient httpClient;
   private final ObjectMapper mapper;
+  private final NetflixE2ETokenHandler e2eTokenHandler;
 
   private HTTPClient(
       String uri,
       Map<String, String> baseHeaders,
       ObjectMapper objectMapper,
       HttpRequestInterceptor requestInterceptor,
-      Map<String, String> properties) {
+      Map<String, String> properties,
+      HttpClientConnectionManager connectionManager) {
     this.uri = uri;
     this.mapper = objectMapper;
 
     HttpClientBuilder clientBuilder = HttpClients.custom();
+
+    clientBuilder.setConnectionManager(connectionManager);
 
     if (baseHeaders != null) {
       clientBuilder.setDefaultHeaders(
@@ -101,6 +122,12 @@ public class HTTPClient implements RESTClient {
 
     int maxRetries = PropertyUtil.propertyAsInt(properties, REST_MAX_RETRIES, 5);
     clientBuilder.setRetryStrategy(new ExponentialHttpRequestRetryStrategy(maxRetries));
+
+    if (isE2ETokenEnabled(properties)) {
+      this.e2eTokenHandler = new NetflixE2ETokenHandler(properties);
+    } else {
+      this.e2eTokenHandler = null;
+    }
 
     this.httpClient = clientBuilder.build();
   }
@@ -385,6 +412,10 @@ public class HTTPClient implements RESTClient {
     // bodied request.
     request.setHeader(HttpHeaders.CONTENT_TYPE, bodyMimeType);
     requestHeaders.forEach(request::setHeader);
+
+    if (e2eTokenHandler != null) {
+      e2eTokenHandler.addRequestHeaders(request, httpClient, mapper);
+    }
   }
 
   @Override
@@ -425,6 +456,49 @@ public class HTTPClient implements RESTClient {
         .invoke(properties);
 
     return instance;
+  }
+
+  static HttpClientConnectionManager configureConnectionManager(Map<String, String> properties) {
+    PoolingHttpClientConnectionManagerBuilder connectionManagerBuilder =
+        PoolingHttpClientConnectionManagerBuilder.create();
+    ConnectionConfig connectionConfig = configureConnectionConfig(properties);
+    if (connectionConfig != null) {
+      connectionManagerBuilder.setDefaultConnectionConfig(connectionConfig);
+    }
+
+    NetflixAuthUtil.initMetatronSSLConnectionSocketFactory(connectionManagerBuilder, properties);
+
+    return connectionManagerBuilder
+        .useSystemProperties()
+        .setMaxConnTotal(Integer.getInteger(REST_MAX_CONNECTIONS, REST_MAX_CONNECTIONS_DEFAULT))
+        .setMaxConnPerRoute(
+            PropertyUtil.propertyAsInt(
+                properties, REST_MAX_CONNECTIONS_PER_ROUTE, REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT))
+        .build();
+  }
+
+  @VisibleForTesting
+  static ConnectionConfig configureConnectionConfig(Map<String, String> properties) {
+    Long connectionTimeoutMillis =
+        PropertyUtil.propertyAsNullableLong(properties, REST_CONNECTION_TIMEOUT_MS);
+    Integer socketTimeoutMillis =
+        PropertyUtil.propertyAsNullableInt(properties, REST_SOCKET_TIMEOUT_MS);
+
+    if (connectionTimeoutMillis == null && socketTimeoutMillis == null) {
+      return null;
+    }
+
+    ConnectionConfig.Builder connConfigBuilder = ConnectionConfig.custom();
+
+    if (connectionTimeoutMillis != null) {
+      connConfigBuilder.setConnectTimeout(connectionTimeoutMillis, TimeUnit.MILLISECONDS);
+    }
+
+    if (socketTimeoutMillis != null) {
+      connConfigBuilder.setSocketTimeout(socketTimeoutMillis, TimeUnit.MILLISECONDS);
+    }
+
+    return connConfigBuilder.build();
   }
 
   public static Builder builder(Map<String, String> properties) {
@@ -472,7 +546,13 @@ public class HTTPClient implements RESTClient {
         interceptor = loadInterceptorDynamically(SIGV4_REQUEST_INTERCEPTOR_IMPL, properties);
       }
 
-      return new HTTPClient(uri, baseHeaders, mapper, interceptor, properties);
+      return new HTTPClient(
+          uri,
+          baseHeaders,
+          mapper,
+          interceptor,
+          properties,
+          configureConnectionManager(properties));
     }
   }
 
