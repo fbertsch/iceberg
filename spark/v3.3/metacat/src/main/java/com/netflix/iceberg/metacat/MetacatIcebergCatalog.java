@@ -292,7 +292,11 @@ public class MetacatIcebergCatalog extends BaseMetastoreCatalog implements Suppo
         true /* Include user-metadata */,
         false /* Include table names */);
 
-      return ImmutableMap.copyOf(databaseDto.getMetadata());
+      Map<String, String> metadata = (databaseDto.getMetadata() == null)
+              ? new HashMap<String, String>()
+              : databaseDto.getMetadata();
+
+      return ImmutableMap.copyOf(metadata);
     } catch (MetacatNotFoundException e) {
       throw new NoSuchNamespaceException("Namespace: %s not found.", namespace);
     }
