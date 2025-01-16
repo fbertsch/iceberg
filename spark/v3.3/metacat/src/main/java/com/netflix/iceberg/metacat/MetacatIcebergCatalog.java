@@ -2,6 +2,8 @@ package com.netflix.iceberg.metacat;
 
 import com.netflix.iceberg.CreateMADSnapshotListener;
 import com.netflix.iceberg.KSGatewayListener;
+import com.netflix.iceberg.metacat.properties.JanitorPropertiesHandler;
+import com.netflix.iceberg.metacat.properties.NdcPropertiesHandler;
 import com.netflix.metacat.client.Client;
 import com.netflix.metacat.common.dto.DatabaseCreateRequestDto;
 import com.netflix.metacat.common.dto.DatabaseDto;
@@ -30,6 +32,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class MetacatIcebergCatalog extends BaseMetastoreCatalog implements SupportsNamespaces {
   public static final String MIGRATED_DATA_LOCATION = "migrated_data_location";
@@ -95,7 +98,13 @@ public class MetacatIcebergCatalog extends BaseMetastoreCatalog implements Suppo
 
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
-    return new MetacatClientOps(conf, newClient(), tableIdentifier);
+    return new MetacatClientOps(
+            conf,
+            newClient(),
+            tableIdentifier,
+            Lists.newArrayList(new NdcPropertiesHandler(conf)),
+            Lists.newArrayList(new JanitorPropertiesHandler())
+    );
   }
 
   @Override
@@ -114,11 +123,11 @@ public class MetacatIcebergCatalog extends BaseMetastoreCatalog implements Suppo
       propertiesBuilder.put(TableProperties.DEFAULT_FILE_FORMAT, properties.get("provider"));
     }
 
-    if (!properties.containsKey(DefinitionMetadata.SNAPSHOT_TTL_PROP)
-        && conf.getBoolean(DefinitionMetadata.SET_DEFAULT_SNAPSHOT_TTL, true)) {
+    if (!properties.containsKey(JanitorPropertiesHandler.SNAPSHOT_TTL_PROP)
+        && conf.getBoolean(JanitorPropertiesHandler.SET_DEFAULT_SNAPSHOT_TTL, true)) {
       propertiesBuilder.put(
-          DefinitionMetadata.SNAPSHOT_TTL_PROP,
-          DefinitionMetadata.DEFAULT_SNAPSHOT_TTL_DAYS.toString());
+          JanitorPropertiesHandler.SNAPSHOT_TTL_PROP,
+              JanitorPropertiesHandler.DEFAULT_SNAPSHOT_TTL_DAYS.toString());
     }
 
     return super.createTable(identifier, schema, spec, propertiesBuilder.build());

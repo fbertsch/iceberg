@@ -20,6 +20,7 @@
 package com.netflix.iceberg.metacat;
 
 import com.netflix.iceberg.batch.MetacatBatchCatalog;
+import com.netflix.iceberg.metacat.properties.JanitorPropertiesHandler;
 import com.netflix.metacat.common.exception.MetacatBadRequestException;
 import java.util.Locale;
 import java.util.Map;
@@ -271,10 +272,10 @@ public class NetflixSparkCatalog extends BaseCatalog implements ViewCatalog {
       newProperties.put(TableProperties.DEFAULT_FILE_FORMAT, format);
     }
 
-    if (!properties.containsKey(DefinitionMetadata.SNAPSHOT_TTL_PROP)) {
+    if (!properties.containsKey(JanitorPropertiesHandler.SNAPSHOT_TTL_PROP)) {
       newProperties.put(
-              DefinitionMetadata.SNAPSHOT_TTL_PROP,
-              DefinitionMetadata.DEFAULT_SNAPSHOT_TTL_DAYS.toString());
+              JanitorPropertiesHandler.SNAPSHOT_TTL_PROP,
+              JanitorPropertiesHandler.DEFAULT_SNAPSHOT_TTL_DAYS.toString());
     }
     
     return newProperties.build();

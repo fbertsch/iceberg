@@ -3,6 +3,8 @@ package com.netflix.iceberg.metacat;
 import com.netflix.bdp.security.authorization.Acl;
 import com.netflix.bdp.security.authorization.AclJsonParser;
 import com.netflix.bdp.security.authorization.AuthPolicy;
+import com.netflix.iceberg.metacat.properties.ExternalPropertiesHandler;
+import com.netflix.iceberg.metacat.properties.JsonPropertiesHandler;
 import com.netflix.iceberg.security.MixedFileIO;
 import com.netflix.iceberg.security.S3AuthStrategy;
 import com.netflix.iceberg.security.SecurityContext;
@@ -28,22 +30,6 @@ import com.netflix.s3authsign.common.rest.S3StsAccessDeniedException;
 import com.netflix.s3authsts.common.rest.StsCredentials;
 import com.netflix.spectator.api.Spectator;
 import com.netflix.spectator.ipc.IpcLogger;
-import java.io.Closeable;
-import java.io.File;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.LocationProviders;
@@ -72,6 +58,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.apache.spark.sql.SparkSession;
@@ -79,6 +66,23 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+
+import java.io.Closeable;
+import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static com.netflix.iceberg.metacat.DefinitionMetadata.SECURE_FLAG;
 import static com.netflix.iceberg.metacat.DefinitionMetadata.setParentChildRelationship;
@@ -94,8 +98,7 @@ import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.INTERNAL_PROP_PA
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.LOAD_AUTH_ONLY_METADATA;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.PARENT_CHILD_RELATION_INFO;
 import static com.netflix.iceberg.metacat.MetacatUtil.OWNER;
-import static com.netflix.iceberg.metacat.NdcUtil.NDC_PROD_PREFIX;
-import static com.netflix.iceberg.metacat.NdcUtil.NDC_UPDATE_ENABLED_CONF;
+import static com.netflix.iceberg.metacat.MetacatUtil.getUser;
 import static com.netflix.iceberg.security.IcebergAclStorage.ACL_PROPERTY_KEY;
 import static com.netflix.iceberg.security.SecurityUtil.SIGNER_DEFAULT_APP_NAME;
 import static com.netflix.iceberg.security.SecurityUtil.getSignerHost;
@@ -120,6 +123,8 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
 
   private static final boolean METACAT_SUPPORTS_BRANCHING = false;
 
+  private static final String NETFLIX_PREFIX = "netflix.";
+
   private final Configuration conf;
   private final MetacatApi metacatApi;
   private final TableIdentifier identifier;
@@ -135,7 +140,15 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
   private S3AuthStrategy authStrategy;
   private int stsRefreshIfExpireInSecs;
 
-  MetacatClientOps(Configuration conf, Client client, TableIdentifier identifier) {
+  private final List<ExternalPropertiesHandler> externalPropertiesHandlers;
+  private final List<JsonPropertiesHandler> jsonPropertyHandlers;
+
+  MetacatClientOps(
+          Configuration conf,
+          Client client,
+          TableIdentifier identifier,
+          List<ExternalPropertiesHandler> externalPropertiesHandlers,
+          List<JsonPropertiesHandler> jsonPropertyHandlers) {
     this.conf = conf;
     this.metacatApi = MetacatApi.builder()
         .withMetacatV1(client.getApi())
@@ -150,6 +163,8 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
     this.securityContext = new SecurityContext(identifier.toString());
     this.authStrategy = S3AuthStrategy.valueOf(conf.get("spark.netflix.authz-strategy", "STS"));
     this.stsRefreshIfExpireInSecs = conf.getInt("spark.netflix.authz.sts.refreshIfExpireInSecs", 300);
+    this.externalPropertiesHandlers = ImmutableList.copyOf(externalPropertiesHandlers);
+    this.jsonPropertyHandlers = ImmutableList.copyOf(jsonPropertyHandlers);
 
     try {
       Class.forName("org.apache.spark.sql.SparkSession");
@@ -250,6 +265,15 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
           finalProperties.putAll(builder.build());
         }
 
+        for (ExternalPropertiesHandler handler : externalPropertiesHandlers) {
+          Map<String, String> externalProperties = handler.loadProperties(identifier);
+          finalProperties.putAll(externalProperties);
+        }
+        for (JsonPropertiesHandler handler : jsonPropertyHandlers) {
+          Map<String, String> jsonProperties = handler.fromJson(identifier, tableInfo.getDefinitionMetadata());
+          finalProperties.putAll(jsonProperties);
+        }
+
         if (conf.getBoolean(LOAD_AUTH_ONLY_METADATA, false)) {
           tableMetadata = tableMetadata.addAdditionalPropertiesToAuthOnlyMetadata(finalProperties);
         } else {
@@ -318,6 +342,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
   @Override
   public synchronized void doCommit(TableMetadata base, TableMetadata metadata) {
     metadata = updateOwner(metadata);
+    // TODO - dgoya - delegate this to the handlers
     ObjectNode definitionMetadata = DefinitionMetadata.buildDefinitionMetadata(base, metadata);
 
     if (isCreateNewTable()) {
@@ -393,7 +418,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
       NoSuchIcebergTableException.check(sourceMetadataLocation != null,
               "Invalid table, missing metadata_location: %s.%s.%s", sourceNames[0], sourceNames[1], sourceNames[2]);
       Map<String, String> reserved = DefinitionMetadata.reservedProperties(sourceTableInfo.getDefinitionMetadata());
-      MetacatClientOps sourceTableOps = new MetacatClientOps(conf, metacatClient, TableIdentifier.parse(sourceName));
+      MetacatClientOps sourceTableOps = new MetacatClientOps(conf, metacatClient, TableIdentifier.parse(sourceName), externalPropertiesHandlers, jsonPropertyHandlers);
       TableMetadata sourceMetadata = TableMetadataParser.read(sourceTableOps.io(), sourceMetadataLocation)
               .withAdditionalProperties(reserved);
 
@@ -402,22 +427,38 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
       metadata = mergeMetadataForCloneTable(metadata, sourceMetadata);
     }
 
-    Map<String, String> props = metadata.properties();
-    if (conf.getBoolean(NDC_UPDATE_ENABLED_CONF, true) && props != null) {
-      Map<String, String> ndcProps =
-          props.entrySet()
+    OperationContext operationContext = new OperationContext(getUser(metadata));
+    for (ExternalPropertiesHandler handler : externalPropertiesHandlers) {
+      Map<String, String> props = metadata.properties();
+      String prefix = handler.prefix();
+      Map<String, String> handlerProperties = props.entrySet()
               .stream()
-              .filter(k -> k.getKey().startsWith(NDC_PROD_PREFIX))
-              .collect(Collectors.toMap(e -> e.getKey().substring(NDC_PROD_PREFIX.length()), e -> e.getValue()));
-      if (!ndcProps.isEmpty()) {
-        NdcUtil.updateNdc(catalog, database, table, ndcProps);
-        Map<String, String> propsWithoutNdc =
-            props.entrySet()
-                .stream()
-                .filter(k -> !k.getKey().startsWith(NDC_PROD_PREFIX))
-                .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
-        metadata = metadata.replaceProperties(propsWithoutNdc);  // reserved properties will be handled later
-      }
+              .filter(e -> e.getKey().startsWith(prefix))
+              .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+      handler.saveProperties(
+              identifier,
+              handlerProperties,
+              operationContext);
+      // remove all handled properties from the set to be persisted
+      // the handler will take care of populating them
+      metadata = metadata.removeProperties(handlerProperties.keySet()::contains);
+    }
+    for (JsonPropertiesHandler handler : jsonPropertyHandlers) {
+      Map<String, String> props = metadata.properties();
+      String prefix = handler.prefix();
+      Map<String, String> handlerProperties = props.entrySet()
+              .stream()
+              .filter(e -> e.getKey().startsWith(prefix))
+              .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+      ObjectNode propertiesJson = handler.toJson(
+              identifier,
+              handlerProperties,
+              operationContext
+      );
+      definitionMetadata = DefinitionMetadata.overwriteMerge(definitionMetadata, propertiesJson);
+      // remove all handled properties from the set to be persisted
+      // the handler will take care of populating them
+      metadata = metadata.removeProperties(handlerProperties.keySet()::contains);
     }
 
     String newMetadataLocation = writeNewMetadata(
@@ -581,7 +622,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
    * @return
    */
   private TableMetadata mergeMetadataForCloneTable(TableMetadata metadata, TableMetadata src) {
-    Map<String, String> srcProps = new HashMap(src.properties());
+    Map<String, String> srcProps = new HashMap<>(src.properties());
 
     // Remove this so that new metadata won't be written to old location
     srcProps.remove(WRITE_METADATA_LOCATION);

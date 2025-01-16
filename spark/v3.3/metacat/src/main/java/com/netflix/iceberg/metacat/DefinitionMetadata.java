@@ -42,52 +42,18 @@ import static com.netflix.iceberg.metacat.MetacatUtil.NETFLIX_OWNER;
 import static com.netflix.iceberg.metacat.MetacatUtil.OWNER;
 import static com.netflix.iceberg.metacat.MetacatUtil.USER_ID;
 
-class DefinitionMetadata {
+public class DefinitionMetadata {
   // security properties
   static final String SECURE_FLAG = "secure";
   static final String AUTH_POLICY = "auth_policy";
 
-  // configuration table properties
-  private static final String DATA_TTL_PROP = "janitor.data-ttl-days";
-  private static final String DATA_TTL_COLUMN_PROP = "janitor.data-ttl-column";
-  private static final String DATA_TTL_METHOD_PROP = "janitor.data-ttl-method";
-  public static final String SNAPSHOT_TTL_PROP = "janitor.snapshot-ttl-days";
+
   private static final String COMMENT_PROP = "comment";
   private static final String VTTS_TIMESTAMP_SECONDS = "vtts.timestamp-utc-seconds";
   private static final String VTTS_TRIGGER_METHOD = "vtts.trigger-method";
 
   private static final Set<String> RESERVED_PROPERTIES = Sets.newHashSet(
-      DATA_TTL_PROP, DATA_TTL_COLUMN_PROP, DATA_TTL_METHOD_PROP, COMMENT_PROP,
-      VTTS_TIMESTAMP_SECONDS, VTTS_TRIGGER_METHOD, SECURE_FLAG, AUTH_POLICY, SNAPSHOT_TTL_PROP);
-
-  // "definitionMetadata": {
-  //   "lifetime": {
-  //     "user": "rblue",
-  //     "days": -1 or 120,
-  //     "snapshotTTL": 3
-  //   },
-  //   "data_hygiene": {
-  // 	   "delete_method": "manually deleted" or "by partition column",
-  //     "delete_column": "utc_date",
-  //     "hour_column": "utc_hour" <-- not supported
-  //   }
-  // }
-  private static final String LIFETIME = "lifetime";
-  private static final String USER = "user";
-  private static final String DAYS = "days";
-  private static final String SNAPSHOT_TTL = "snapshotTTL";
-  private static final String DATA_HYGIENE = "data_hygiene";
-  private static final String METHOD = "delete_method";
-  private static final String COLUMN = "delete_column";
-  private static final String DATA_TTL_PREFIX = "janitor.";
-  private static final String DATA_TTL_MANUAL = "manually deleted";
-  private static final String DATA_TTL_REPLACED_DAILY = "replaced daily";
-  private static final String DATA_TTL_BY_PARTITION_COLUMN = "by partition column";
-  private static final String DATA_TTL_BY_DATE_COLUMN = "by date column";
-  private static final String DATA_TTL_BY_ACCOUNT_ID = "delete by account_id";
-  private static final Set<String> VALID_TTL_METHODS = Sets.newHashSet(
-      DATA_TTL_MANUAL, DATA_TTL_REPLACED_DAILY, DATA_TTL_BY_PARTITION_COLUMN, DATA_TTL_BY_DATE_COLUMN,
-      DATA_TTL_BY_ACCOUNT_ID);
+      COMMENT_PROP, VTTS_TIMESTAMP_SECONDS, VTTS_TRIGGER_METHOD, SECURE_FLAG, AUTH_POLICY);
 
   // "definitionMetadata": {
   //   "data_dependency": {
@@ -115,8 +81,6 @@ class DefinitionMetadata {
   //   "table_description": "Table doc string"
   // }
   private static final String DESCRIPTION = "table_description";
-  public static final String SET_DEFAULT_SNAPSHOT_TTL = "netflix.janitors.set-default-snapshot-ttl";
-  public static final Integer DEFAULT_SNAPSHOT_TTL_DAYS = 3; /* Store 3 days worth of snapshots by default */
 
   public static String getMigratedDataLoc(ObjectNode definitionMetadata) {
     if(definitionMetadata.hasNonNull(MIGRATED_DATA_LOCATION)) {
@@ -176,17 +140,6 @@ class DefinitionMetadata {
     if (definitionMetadata != null) {
       ImmutableMap.Builder<String, String> reservedProperties = ImmutableMap.builder();
 
-      if (definitionMetadata.has(LIFETIME)) {
-        JsonNode lifetime = definitionMetadata.get(LIFETIME);
-        copyNumber(lifetime, DAYS, reservedProperties, DATA_TTL_PROP);
-      }
-
-      if (definitionMetadata.has(DATA_HYGIENE)) {
-        JsonNode dataHygiene = definitionMetadata.get(DATA_HYGIENE);
-        copyString(dataHygiene, METHOD, reservedProperties, DATA_TTL_METHOD_PROP);
-        copyString(dataHygiene, COLUMN, reservedProperties, DATA_TTL_COLUMN_PROP);
-      }
-
       if (definitionMetadata.has(DATA_DEPENDENCY)) {
         JsonNode dataDependency = definitionMetadata.get(DATA_DEPENDENCY);
         copyNumber(dataDependency, VTTS_SECONDS, reservedProperties, VTTS_TIMESTAMP_SECONDS);
@@ -206,7 +159,6 @@ class DefinitionMetadata {
     addOwner(metadata, base, current);
     addDescription(metadata, base, current);
     addVTTSProperties(metadata, base, current);
-    addJanitorProperties(metadata, base, current);
     addFlinkWatermarkProperties(metadata, base, current);
     addSecurityProperties(metadata, base, current);
     return metadata;
@@ -290,61 +242,6 @@ class DefinitionMetadata {
     }
   }
 
-  private static void addJanitorProperties(ObjectNode metadata, TableMetadata base, TableMetadata current) {
-    Map<String, String> updates = changedProperties(
-        base != null ? base.properties() : null, current.properties(), DATA_TTL_PREFIX);
-
-    if (updates.isEmpty()) {
-      return;
-    }
-
-    String ttlUpdate = updates.get(DATA_TTL_PROP);
-    String snapshotTtlUpdate = updates.get(SNAPSHOT_TTL_PROP);
-    if (ttlUpdate != null || snapshotTtlUpdate != null) {
-      ObjectNode lifetime = JsonNodeFactory.instance.objectNode();
-
-      if (ttlUpdate != null) {
-        try {
-          lifetime.put(DAYS, Long.parseLong(ttlUpdate));
-        } catch (NumberFormatException e) {
-          throw new IllegalArgumentException(
-              String.format("Invalid value for %s: %s", DATA_TTL_PROP, ttlUpdate));
-        }
-      }
-
-      if (snapshotTtlUpdate != null) {
-        try {
-          lifetime.put(SNAPSHOT_TTL, Long.parseLong(snapshotTtlUpdate));
-        } catch (NumberFormatException e) {
-          throw new IllegalArgumentException(
-              String.format("Invalid value for %s: %s", SNAPSHOT_TTL, snapshotTtlUpdate));
-        }
-      }
-
-      lifetime.put(USER, MetacatUtil.getUser(current));
-      metadata.put(LIFETIME, lifetime);
-    }
-
-    String ttlMethod = updates.get(DATA_TTL_METHOD_PROP);
-    String ttlColumn = updates.get(DATA_TTL_COLUMN_PROP);
-    if (ttlMethod != null || ttlColumn != null) {
-      ObjectNode dataHygiene = JsonNodeFactory.instance.objectNode();
-
-      if (ttlMethod != null) {
-        String ttlMethodLower = ttlMethod.toLowerCase(Locale.ROOT);
-        Preconditions.checkArgument(VALID_TTL_METHODS.contains(ttlMethodLower),
-            "Invalid value for %s: %s (not in %s)", DATA_TTL_METHOD_PROP, ttlMethod, VALID_TTL_METHODS);
-        dataHygiene.put(METHOD, ttlMethodLower);
-      }
-
-      if (ttlColumn != null) {
-        dataHygiene.put(COLUMN, ttlColumn);
-      }
-
-      metadata.put(DATA_HYGIENE, dataHygiene);
-    }
-  }
-
   private static final String FLINK_WATERMARK_PREFIX = "flink.watermark.";
 
   private static void addFlinkWatermarkProperties(ObjectNode metadata, TableMetadata base, TableMetadata current) {
@@ -386,7 +283,7 @@ class DefinitionMetadata {
     return result;
   }
 
-  private static void copyString(JsonNode node, String jsonProperty,
+  public static void copyString(JsonNode node, String jsonProperty,
                                  ImmutableMap.Builder<String, String> builder, String property) {
     if (node != null && node.isObject() && node.has(jsonProperty)) {
       JsonNode value = node.get(jsonProperty);
@@ -396,7 +293,7 @@ class DefinitionMetadata {
     }
   }
 
-  private static void copyNumber(JsonNode node, String jsonProperty,
+  public static void copyNumber(JsonNode node, String jsonProperty,
                                  ImmutableMap.Builder<String, String> builder, String property) {
     if (node != null && node.isObject() && node.has(jsonProperty)) {
       JsonNode value = node.get(jsonProperty);

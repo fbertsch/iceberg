@@ -19,6 +19,9 @@
 
 package com.netflix.iceberg.metacat;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.netflix.metacat.client.Client;
 import com.netflix.metacat.common.dto.DatabaseDto;
 import com.netflix.metacat.common.dto.TableDto;
@@ -33,23 +36,27 @@ import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.JsonUtil;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-public class MetacatUtil {
+public class MetacatUtil
+{
 
   public static final String OWNER = "owner";
   public static final String USER_ID = "userId";
   public static final String NETFLIX_OWNER = "netflix.owner";
   public static final String SIMPLE_GET_USER_ENABLED = "netflix.iceberg.metacat.simple-get-user-enabled";
 
-  private MetacatUtil() {
+  private MetacatUtil()
+  {
   }
 
   /**
    * This call explicitly tells metacat not to load metadata from S3 to reduce load for metacat, so some fields like
    * schema or partition spec will be empty in response.
    */
-  public static TableDto getIcebergTable(MetacatApi metacatApi, String catalog, String database, String table) {
+  public static TableDto getIcebergTable(MetacatApi metacatApi, String catalog, String database, String table)
+  {
     return metacatApi.getTable(catalog, database, table,
             true /* send table fields, partition keys */,
             true /* send user definition metadata (including ttl settings) */,
@@ -58,7 +65,8 @@ public class MetacatUtil {
             true /* avoid metacat from loading meta data from S3 */);
   }
 
-  private static String getUser() {
+  private static String getUser()
+  {
     // Match the behavior of Hive's Utils.getUser. If HADOOP_USER_NAME is set, Hive will proxy using the session
     // credentials using doAs, so the effective user is HADOOP_USER_NAME. Otherwise, Hive will use the current
     // credentials to get a username.
@@ -69,59 +77,69 @@ public class MetacatUtil {
     // Use the current credentials to get a username. This is the call made to determine user in Presto, too.
     try {
       return UserGroupInformation.getCurrentUser().getUserName();
-    } catch (IOException e) {
+    }
+    catch (IOException e) {
       // use the USER environment variable instead
     }
 
     // If Hadoop environment credentials aren't available, try USER or the Java user.name system property.
     if (System.getenv("USER") != null) {
       return System.getenv("USER");
-    } else {
+    }
+    else {
       return System.getProperty("user.name");
     }
   }
 
-  public static String getUser(TableMetadata tableMetadata) {
+  public static String getUser(TableMetadata tableMetadata)
+  {
     if (tableMetadata != null) {
       return getUser(tableMetadata.properties());
     }
     return getUser();
   }
 
-  public static String getUser(Map<String, String> properties) {
+  public static String getUser(Map<String, String> properties)
+  {
     // https://jira.netflix.net/browse/DPS-1156
     // Look for the table owner in table metadata, if set. Else rely on the user set in env variables.
     if (properties != null) {
       if (properties.containsKey(NETFLIX_OWNER)) {
         return properties.get(NETFLIX_OWNER);
-      } else if (properties.containsKey(OWNER)) {
+      }
+      else if (properties.containsKey(OWNER)) {
         return properties.get(OWNER);
-      } else {
+      }
+      else {
         return getUser();
       }
     }
     return getUser();
   }
+
   /**
    * Sync the metacat URI between options and conf.
    *
    * @return the metacat URI that is configured for this catalog
    */
-  public static String syncMetacatUri(CaseInsensitiveStringMap options, Configuration conf) {
+  public static String syncMetacatUri(CaseInsensitiveStringMap options, Configuration conf)
+  {
     String metacatUri = options.get("metacat-uri");
     if (metacatUri != null) {
       conf.set("netflix.metacat.host", metacatUri);
       return metacatUri;
-    } else {
+    }
+    else {
       return conf.get("netflix.metacat.host", null);
     }
   }
 
   public static String defaultTableLocation(Configuration conf, Client client,
-                                            String catalog, String database, String tableName) {
+          String catalog, String database, String tableName)
+  {
     DatabaseDto dbInfo = client.getApi().getDatabase(catalog, database,
-        false, /* omit user metadata */
-        false /* omit table names */ );
+            false, /* omit user metadata */
+            false /* omit table names */);
 
     if (dbInfo.getUri() != null) {
       return dbInfo.getUri() + "/" + tableName;
@@ -133,65 +151,75 @@ public class MetacatUtil {
     return String.format("%s/%s.db/%s", warehouseLocation, database, tableName);
   }
 
-  public static boolean dropTable(Client client, String catalog, String database, String tableName) {
+  public static boolean dropTable(Client client, String catalog, String database, String tableName)
+  {
     try {
       client.getApi().deleteTable(catalog, database, tableName);
       return true;
-    } catch (MetacatNotFoundException e) {
+    }
+    catch (MetacatNotFoundException e) {
       return false;
     }
   }
 
-  public static boolean doesTableExist(Client client, TableIdentifier tableIdentifier) {
+  public static boolean doesTableExist(Client client, TableIdentifier tableIdentifier)
+  {
     String catalog = tableIdentifier.namespace().level(0);
     String database = tableIdentifier.namespace().level(1);
     String table = tableIdentifier.name();
     try {
       return client.getApi().doesTableExist(catalog, database, table);
-    } catch (MetacatNotFoundException e) {
+    }
+    catch (MetacatNotFoundException e) {
       return false;
     }
   }
 
-  public static String getJobId(Configuration conf) {
+  public static String getJobId(Configuration conf)
+  {
     return conf.get("genie.job.id");
   }
 
-  public static Retryer getRetryer(Configuration conf) {
+  public static Retryer getRetryer(Configuration conf)
+  {
     long period = conf.getTimeDuration("netflix.metacat.retry.period", 60 * 1000, TimeUnit.MILLISECONDS);
     long maxPeriod = conf.getTimeDuration("netflix.metacat.retry.maxPeriod", 5 * 60 * 1000, TimeUnit.MILLISECONDS);
     int maxAttempts = conf.getInt("netflix.metacat.retry.maxAttempts", 3);
     return new Retryer.Default(period, maxPeriod, maxAttempts);
   }
 
-  public static Request.Options getRequestOptions(Configuration conf) {
+  public static Request.Options getRequestOptions(Configuration conf)
+  {
     long connectTimeoutMillis = conf.getInt("netflix.metacat.connectTimeoutMillis",
-        (int) TimeUnit.MINUTES.toMillis(10));
+            (int) TimeUnit.MINUTES.toMillis(10));
     long readTimeoutMillis = conf.getInt("netflix.metacat.readTimeoutMillis",
-        (int) TimeUnit.MINUTES.toMillis(30));
+            (int) TimeUnit.MINUTES.toMillis(30));
     return new Request.Options(
-        connectTimeoutMillis, TimeUnit.MILLISECONDS, readTimeoutMillis, TimeUnit.MILLISECONDS, true);
+            connectTimeoutMillis, TimeUnit.MILLISECONDS, readTimeoutMillis, TimeUnit.MILLISECONDS, true);
   }
 
-  public static Client newClient(String appName, String host, Configuration conf) {
+  public static Client newClient(String appName, String host, Configuration conf)
+  {
     String user;
-    if(conf.getBoolean(SIMPLE_GET_USER_ENABLED, false)) {
+    if (conf.getBoolean(SIMPLE_GET_USER_ENABLED, false)) {
       user = System.getProperty("user.name", "unknown_system_user");
-    } else {
+    }
+    else {
       user = getUser();
     }
     return Client.builder()
-        .withClientAppName(appName)
-        .withHost(host)
-        .withJobId(getJobId(conf))
-        .withUserName(user)
-        .withDataTypeContext("hive")
-        .withRetryer(getRetryer(conf))
-        .withRequestOptions(getRequestOptions(conf))
-        .build();
+            .withClientAppName(appName)
+            .withHost(host)
+            .withJobId(getJobId(conf))
+            .withUserName(user)
+            .withDataTypeContext("hive")
+            .withRetryer(getRetryer(conf))
+            .withRequestOptions(getRequestOptions(conf))
+            .build();
   }
 
-  public static int latencyThresholdMs(Configuration conf) {
+  public static int latencyThresholdMs(Configuration conf)
+  {
     return conf.getInt("netflix.metacat.latencyThresholdMs", 1000);
   }
 }
