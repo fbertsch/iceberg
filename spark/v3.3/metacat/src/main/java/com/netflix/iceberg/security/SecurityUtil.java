@@ -59,7 +59,7 @@ import static java.util.Collections.singleton;
 import static org.apache.iceberg.TableProperties.WRITE_METADATA_LOCATION;
 
 public class SecurityUtil {
-  public static final String SIGNER_DEFAULT_HOST = "dgws3authsign.bdc.cluster.us-east-1.prod.cloud.netflix.net";
+  public static final String SIGNER_DEFAULT_HOST = "bdc.dgws3-auth-sign.vip.us-east-1.prod.cloud.netflix.net";
   public static final String SIGNER_DEFAULT_APP_NAME = "dgws3authsign.bdc";
 
   public static final String SECURE_BUCKET = "netflix.warehouse.secure.bucket";
