@@ -223,7 +223,7 @@ public class MetacatIcebergCatalog extends BaseMetastoreCatalog implements Suppo
     return dbClient.getApi().getDatabase(catalogName, dbName,
             false /* Include user-metadata */,
             true /* Include table names */)
-      .getTables().stream().map(t -> TableIdentifier.of(namespace, t)).collect(Collectors.toList());
+      .getTables().stream().map(t -> TableIdentifier.of(dbName, t)).collect(Collectors.toList());
   }
 
   @Override
