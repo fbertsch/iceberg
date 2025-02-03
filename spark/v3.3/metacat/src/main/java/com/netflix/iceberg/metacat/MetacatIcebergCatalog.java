@@ -223,7 +223,7 @@ public class MetacatIcebergCatalog extends BaseMetastoreCatalog implements Suppo
     return dbClient.getApi().getDatabase(catalogName, dbName,
             false /* Include user-metadata */,
             true /* Include table names */)
-      .getTables().stream().map(t -> TableIdentifier.of(namespace, t)).collect(Collectors.toList());
+      .getTables().stream().map(t -> TableIdentifier.of(dbName, t)).collect(Collectors.toList());
   }
 
   @Override
@@ -292,7 +292,9 @@ public class MetacatIcebergCatalog extends BaseMetastoreCatalog implements Suppo
         true /* Include user-metadata */,
         false /* Include table names */);
 
-      return ImmutableMap.copyOf(databaseDto.getMetadata());
+        return (databaseDto.getMetadata() == null)
+                ? ImmutableMap.of()
+                : ImmutableMap.copyOf(databaseDto.getMetadata());
     } catch (MetacatNotFoundException e) {
       throw new NoSuchNamespaceException("Namespace: %s not found.", namespace);
     }
