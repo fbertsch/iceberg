@@ -67,6 +67,7 @@ public class SecurityUtil {
   public static final String SECURE_BUCKET_TEST = "netflix.warehouse.secure.bucket.test";
   public static final String DEFAULT_SECURE_BUCKET_TEST = "nflx-secure-dataeng-test-us-east-1";
   public static final String USE_SECURE_LOCATION = "netflix.warehouse.use-secure-location";
+  public static final String INITIALIZE_ACL = "netflix.warehouse.initialize_acl";
   private static final String BEGIN = "-----BEGIN CERTIFICATE-----\n";
   private static final String END = "\n-----END CERTIFICATE-----\n";
   public static final String COMMON_ACCESS_ROLE = "common-access@bdp";

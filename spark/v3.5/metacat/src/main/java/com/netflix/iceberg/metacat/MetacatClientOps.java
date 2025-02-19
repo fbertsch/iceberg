@@ -80,6 +80,7 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 
+import static com.netflix.bdp.security.authorization.AuthPolicy.STRICT;
 import static com.netflix.iceberg.metacat.DefinitionMetadata.SECURE_FLAG;
 import static com.netflix.iceberg.metacat.DefinitionMetadata.setParentChildRelationship;
 import static com.netflix.iceberg.metacat.MetacatIcebergCatalog.CONF_EXPOSE_INTERNAL_STATES;
@@ -96,6 +97,7 @@ import static com.netflix.iceberg.metacat.MetacatUtil.OWNER;
 import static com.netflix.iceberg.metacat.NdcUtil.NDC_PROD_PREFIX;
 import static com.netflix.iceberg.metacat.NdcUtil.NDC_UPDATE_ENABLED_CONF;
 import static com.netflix.iceberg.security.IcebergAclStorage.ACL_PROPERTY_KEY;
+import static com.netflix.iceberg.security.SecurityUtil.INITIALIZE_ACL;
 import static com.netflix.iceberg.security.SecurityUtil.SIGNER_DEFAULT_APP_NAME;
 import static com.netflix.iceberg.security.SecurityUtil.getSignerHost;
 import static java.lang.String.format;
@@ -351,6 +353,10 @@ class MetacatClientOps extends BaseMetastoreTableOperations implements Closeable
           }
         }
       } else if (SecurityUtil.isUseSecureLocation(conf)) {
+        if (metadata.properties().getOrDefault(INITIALIZE_ACL, "false").equalsIgnoreCase("true")) {
+          metadata = metadata.removeProperties(a -> a.equals(INITIALIZE_ACL));
+          metadata = SecurityUtil.initializeACL(conf, identifier, metadata, STRICT);
+        }
         // For presto to create table in secure location
         metadata = updateSecureLocation(metadata);
       }
