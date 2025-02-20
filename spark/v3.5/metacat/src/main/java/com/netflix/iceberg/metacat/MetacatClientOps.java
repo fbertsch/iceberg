@@ -354,6 +354,10 @@ class MetacatClientOps extends BaseMetastoreTableOperations implements Closeable
         }
       } else if (SecurityUtil.isUseSecureLocation(conf)) {
         if (metadata.properties().getOrDefault(INITIALIZE_ACL, "false").equalsIgnoreCase("true")) {
+          DefinitionMetadata.setAuthPolicy(definitionMetadata, STRICT);
+          if (!DefinitionMetadata.isSecure(definitionMetadata)) {
+            DefinitionMetadata.markSecure(definitionMetadata);
+          }
           metadata = metadata.removeProperties(a -> a.equals(INITIALIZE_ACL));
           metadata = SecurityUtil.initializeACL(conf, identifier, metadata, STRICT);
         }
