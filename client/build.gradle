@@ -233,7 +233,6 @@ sourceSets {
 task integrationTest(type: Test) {
   description = "Test client shadow jar"
   group = "verification"
-  useJUnitPlatform()
   testClassesDirs = sourceSets.integration.output.classesDirs
   classpath = sourceSets.integration.runtimeClasspath + files(shadowJar.archiveFile.get().asFile.path)
   inputs.file(shadowJar.archiveFile.get().asFile.path)
