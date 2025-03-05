@@ -165,6 +165,8 @@ subprojects {
 
 
   dependencies {
+    implementation(enforcedPlatform(libs.bdc.platform.bom))
+
     implementation libs.slf4j.api
 
     testImplementation libs.junit.vintage.engine
