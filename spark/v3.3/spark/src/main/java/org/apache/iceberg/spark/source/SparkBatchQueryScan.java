@@ -63,6 +63,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   private final Long snapshotId;
   private final Long startSnapshotId;
   private final Long endSnapshotId;
+  private final boolean includeOverwrites;
   private final Long asOfTimestamp;
   private final String tag;
   private final List<Expression> runtimeFilterExpressions;
@@ -80,6 +81,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     this.snapshotId = readConf.snapshotId();
     this.startSnapshotId = readConf.startSnapshotId();
     this.endSnapshotId = readConf.endSnapshotId();
+    this.includeOverwrites = readConf.includeOverwrites();
     this.asOfTimestamp = readConf.asOfTimestamp();
     this.tag = readConf.tag();
     this.runtimeFilterExpressions = Lists.newArrayList();
@@ -226,6 +228,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
         && Objects.equals(snapshotId, that.snapshotId)
         && Objects.equals(startSnapshotId, that.startSnapshotId)
         && Objects.equals(endSnapshotId, that.endSnapshotId)
+        && Objects.equals(includeOverwrites, that.includeOverwrites)
         && Objects.equals(asOfTimestamp, that.asOfTimestamp)
         && Objects.equals(tag, that.tag);
   }
@@ -241,6 +244,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
         snapshotId,
         startSnapshotId,
         endSnapshotId,
+        includeOverwrites,
         asOfTimestamp,
         tag);
   }

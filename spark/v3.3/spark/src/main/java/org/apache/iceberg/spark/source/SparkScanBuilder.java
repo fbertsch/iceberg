@@ -483,6 +483,7 @@ public class SparkScanBuilder
         table
             .newIncrementalAppendScan()
             .fromSnapshotExclusive(startSnapshotId)
+            .includeOverwrites(readConf.includeOverwrites())
             .caseSensitive(caseSensitive)
             .filter(filterExpression())
             .project(expectedSchema);

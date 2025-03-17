@@ -82,6 +82,11 @@ abstract class TableScanContext {
   public abstract Long toSnapshotId();
 
   @Value.Default
+  public boolean includeOverwrites() {
+    return false;
+  }
+
+  @Value.Default
   public ExecutorService planExecutor() {
     return ThreadPools.getWorkerPool();
   }
@@ -159,6 +164,10 @@ abstract class TableScanContext {
 
   TableScanContext toSnapshotId(long id) {
     return ImmutableTableScanContext.builder().from(this).toSnapshotId(id).build();
+  }
+
+  TableScanContext includeOverwrites(boolean includeOverwrites) {
+    return ImmutableTableScanContext.builder().from(this).includeOverwrites(includeOverwrites).build();
   }
 
   TableScanContext planWith(ExecutorService executor) {

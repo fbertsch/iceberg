@@ -95,6 +95,14 @@ public class SparkReadConf {
     return confParser.longConf().option(SparkReadOptions.END_SNAPSHOT_ID).parseOptional();
   }
 
+  public boolean includeOverwrites() {
+    return confParser
+        .booleanConf()
+        .option(SparkReadOptions.INCLUDE_OVERWRITES)
+        .defaultValue(SparkReadOptions.INCLUDE_OVERWRITES_DEFAULT)
+        .parse();
+  }
+
   public String branch() {
     String optionBranch = confParser.stringConf().option(SparkReadOptions.BRANCH).parseOptional();
     ValidationException.check(

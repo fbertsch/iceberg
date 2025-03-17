@@ -48,7 +48,7 @@ class BaseIncrementalAppendScan
 
     // appendsBetween handles null fromSnapshotId (exclusive) properly
     List<Snapshot> snapshots =
-        appendsBetween(table(), fromSnapshotIdExclusive, toSnapshotIdInclusive);
+        appendsBetween(table(), fromSnapshotIdExclusive, toSnapshotIdInclusive, context().includeOverwrites());
     if (snapshots.isEmpty()) {
       return CloseableIterable.empty();
     }
@@ -101,12 +101,13 @@ class BaseIncrementalAppendScan
    * #planFiles()}
    */
   private static List<Snapshot> appendsBetween(
-      Table table, Long fromSnapshotIdExclusive, long toSnapshotIdInclusive) {
+      Table table, Long fromSnapshotIdExclusive, long toSnapshotIdInclusive, boolean includeOverwrites) {
     List<Snapshot> snapshots = Lists.newArrayList();
     for (Snapshot snapshot :
         SnapshotUtil.ancestorsBetween(
             toSnapshotIdInclusive, fromSnapshotIdExclusive, table::snapshot)) {
-      if (snapshot.operation().equals(DataOperations.APPEND)) {
+      if (snapshot.operation().equals(DataOperations.APPEND)
+          || (includeOverwrites && snapshot.operation().equals(DataOperations.OVERWRITE))) {
         snapshots.add(snapshot);
       }
     }

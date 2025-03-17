@@ -85,6 +85,12 @@ abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTask
   }
 
   @Override
+  public ThisT includeOverwrites(boolean includeOverwrites) {
+    TableScanContext newContext = context().includeOverwrites(includeOverwrites);
+    return newRefinedScan(table(), schema(), newContext);
+  }
+
+  @Override
   public ThisT useBranch(String branch) {
     SnapshotRef snapshotRef = table().refs().get(branch);
     Preconditions.checkArgument(snapshotRef != null, "Cannot find ref: %s", branch);

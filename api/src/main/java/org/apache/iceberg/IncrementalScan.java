@@ -101,6 +101,15 @@ public interface IncrementalScan<ThisT, T extends ScanTask, G extends ScanTaskGr
   }
 
   /**
+   * Instructs this scan to include overwrite operations in addition to appends,
+   * if relevant.
+   *
+   * @param includeOverwrites if overwrite operations should be included
+   * @return this for method chaining
+   */
+  ThisT includeOverwrites(boolean includeOverwrites);
+
+  /**
    * Use the specified branch
    *
    * @param branch the branch name

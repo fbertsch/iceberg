@@ -32,6 +32,10 @@ public class SparkReadOptions {
   // End snapshot ID used in incremental scans (inclusive)
   public static final String END_SNAPSHOT_ID = "end-snapshot-id";
 
+  // Should overwrites be included in multi-snapshot scans
+  public static final String INCLUDE_OVERWRITES = "include-overwrites";
+  public static final boolean INCLUDE_OVERWRITES_DEFAULT = false;
+
   // Start timestamp used in multi-snapshot scans (exclusive)
   public static final String START_TIMESTAMP = "start-timestamp";
 
