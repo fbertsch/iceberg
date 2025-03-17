@@ -65,6 +65,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.rest.auth.NetflixAuthUtil;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
@@ -872,6 +873,11 @@ public class RESTSessionCatalog extends BaseSessionCatalog
   private AuthSession newSession(
       Map<String, String> credentials, Map<String, String> properties, AuthSession parent) {
     if (credentials != null) {
+
+      if (NetflixAuthUtil.hasE2EToken(credentials)) {
+        return NetflixAuthUtil.newAuthSessionWithE2E(credentials, parent);
+      }
+
       // use the bearer token without exchanging
       if (credentials.containsKey(OAuth2Properties.TOKEN)) {
         return AuthSession.fromAccessToken(
