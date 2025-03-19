@@ -60,6 +60,7 @@ public class SecurityContext implements Serializable {
     NflxAuthS3StsRest client = NflxAuthS3StsRest.builder()
             .withHost(signerServiceHost)
             .withService(signerAppName)
+            .includePrevLocation(true)
             .build();
     if(e2eTokenSupplier != null) {
       client.setE2eTokenSupplier(e2eTokenSupplier);
