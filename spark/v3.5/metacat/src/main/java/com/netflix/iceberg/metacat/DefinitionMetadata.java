@@ -200,12 +200,28 @@ class DefinitionMetadata {
 
   private static void addOwner(ObjectNode metadata, TableMetadata base, TableMetadata current) {
     if (current.properties().containsKey(OWNER) || current.properties().containsKey(NETFLIX_OWNER)) {
-      metadata.set(
-              OWNER,
-              JsonNodeFactory.instance.objectNode().put("userId", MetacatUtil.getUser(current))
-      );
+      String prevOwnerFromProperties = getOwnerFromProperties(base);
+      String currOwnerFromProperties = getOwnerFromProperties(current);
+      if (!currOwnerFromProperties.isEmpty() && !currOwnerFromProperties.equals(prevOwnerFromProperties)) {
+        metadata.set(
+                OWNER,
+                JsonNodeFactory.instance.objectNode().put("userId", MetacatUtil.getUser(current))
+        );
+      }
     }
   }
+
+    private static String getOwnerFromProperties(TableMetadata metadata) {
+      if(metadata != null && metadata.properties() != null) {
+        if(metadata.properties().containsKey(NETFLIX_OWNER)) {
+          return metadata.properties().get(NETFLIX_OWNER);
+        }
+        if(metadata.properties().containsKey(OWNER)) {
+          return metadata.properties().get(OWNER);
+        }
+      }
+      return "";
+    }
 
   /**
    * Merge children nodes of a and b, value from b is used if a field appears in both.
