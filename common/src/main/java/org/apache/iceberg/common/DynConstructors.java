@@ -146,7 +146,7 @@ public class DynConstructors {
       }
 
       try {
-        Class<?> targetClass = Class.forName(className, true, loader);
+        Class<?> targetClass = classForName(className);
         impl(targetClass, types);
       } catch (NoClassDefFoundError | ClassNotFoundException e) {
         // cannot load this implementation
@@ -183,7 +183,7 @@ public class DynConstructors {
       }
 
       try {
-        Class targetClass = Class.forName(className, true, loader);
+        Class targetClass = classForName(className);
         hiddenImpl(targetClass, types);
       } catch (NoClassDefFoundError | ClassNotFoundException e) {
         // cannot load this implementation
@@ -226,6 +226,18 @@ public class DynConstructors {
         return ctor;
       }
       throw buildRuntimeException(baseClass, problems);
+    }
+
+    private Class<?> classForName(String className) throws ClassNotFoundException {
+      try {
+        return Class.forName(className, true, loader);
+      } catch (ClassNotFoundException e) {
+        if (loader != Thread.currentThread().getContextClassLoader()) {
+          return Class.forName(className, true, Thread.currentThread().getContextClassLoader());
+        } else {
+          throw e;
+        }
+      }
     }
   }
 
