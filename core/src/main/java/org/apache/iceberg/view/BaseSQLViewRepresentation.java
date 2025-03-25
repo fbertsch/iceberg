@@ -18,14 +18,13 @@
  */
 package org.apache.iceberg.view;
 
-/** View properties that can be set during CREATE/REPLACE view or using updateProperties API. */
-public class ViewProperties {
-  public static final String VERSION_HISTORY_SIZE = "version.history.num-entries";
-  public static final int VERSION_HISTORY_SIZE_DEFAULT = 10;
+import org.immutables.value.Value;
 
-  public static final String METADATA_COMPRESSION = "write.metadata.compression-codec";
-  public static final String METADATA_COMPRESSION_DEFAULT = "gzip";
-  public static final String COMMENT = "comment";
-
-  private ViewProperties() {}
-}
+@Value.Immutable
+@Value.Include(value = SQLViewRepresentation.class)
+@SuppressWarnings("ImmutablesStyle")
+@Value.Style(
+        typeImmutableEnclosing = "ImmutableDeleteOrphanFiles",
+        visibility = Value.Style.ImplementationVisibility.PUBLIC,
+        builderVisibility = Value.Style.BuilderVisibility.PUBLIC)
+interface BaseSQLViewRepresentation extends SQLViewRepresentation {}

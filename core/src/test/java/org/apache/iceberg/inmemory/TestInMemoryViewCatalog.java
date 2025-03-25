@@ -16,16 +16,34 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.view;
+package org.apache.iceberg.inmemory;
 
-/** View properties that can be set during CREATE/REPLACE view or using updateProperties API. */
-public class ViewProperties {
-  public static final String VERSION_HISTORY_SIZE = "version.history.num-entries";
-  public static final int VERSION_HISTORY_SIZE_DEFAULT = 10;
+import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.view.ViewCatalogTests;
+import org.junit.jupiter.api.BeforeEach;
 
-  public static final String METADATA_COMPRESSION = "write.metadata.compression-codec";
-  public static final String METADATA_COMPRESSION_DEFAULT = "gzip";
-  public static final String COMMENT = "comment";
+public class TestInMemoryViewCatalog extends ViewCatalogTests<InMemoryCatalog> {
+  private InMemoryCatalog catalog;
 
-  private ViewProperties() {}
+  @BeforeEach
+  public void before() {
+    this.catalog = new InMemoryCatalog();
+    this.catalog.initialize("in-memory-catalog", ImmutableMap.of());
+  }
+
+  @Override
+  protected InMemoryCatalog catalog() {
+    return catalog;
+  }
+
+  @Override
+  protected Catalog tableCatalog() {
+    return catalog;
+  }
+
+  @Override
+  protected boolean requiresNamespaceCreate() {
+    return true;
+  }
 }

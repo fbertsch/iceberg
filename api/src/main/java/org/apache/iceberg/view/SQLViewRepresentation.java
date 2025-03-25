@@ -18,14 +18,17 @@
  */
 package org.apache.iceberg.view;
 
-/** View properties that can be set during CREATE/REPLACE view or using updateProperties API. */
-public class ViewProperties {
-  public static final String VERSION_HISTORY_SIZE = "version.history.num-entries";
-  public static final int VERSION_HISTORY_SIZE_DEFAULT = 10;
+/** SQLViewRepresentation represents views in SQL with a given dialect */
+public interface SQLViewRepresentation extends ViewRepresentation {
 
-  public static final String METADATA_COMPRESSION = "write.metadata.compression-codec";
-  public static final String METADATA_COMPRESSION_DEFAULT = "gzip";
-  public static final String COMMENT = "comment";
+  @Override
+  default String type() {
+    return Type.SQL;
+  }
 
-  private ViewProperties() {}
+  /** The view query SQL text. */
+  String sql();
+
+  /** The view query SQL dialect. */
+  String dialect();
 }

@@ -3,12 +3,11 @@
   "format-version": 1,
   "location": "s3://bucket/test/location",
   "properties": {"some-key": "some-value"},
-  "current-schema-id": 1,
-  "current-version-id": 1234,
+  "current-schema-id": 0,
   "schemas": [
     {
       "type": "struct",
-      "schema-id": 1,
+      "schema-id": 0,
       "fields": [
         {
           "id": 1,
@@ -32,12 +31,13 @@
       ]
     }
   ],
+  "current-version-id": 1,
   "versions": [
     {
       "version-id": 1,
       "timestamp-ms": 4353,
       "summary": {"user": "some-user"},
-      "schema-id": 1,
+      "schema-id": 0,
       "default-catalog": "some-catalog",
       "default-namespace": [],
       "representations": [
@@ -45,20 +45,10 @@
           "type": "sql",
           "sql": "select 'foo' foo",
           "dialect": "spark-sql"
-        }
-      ]
-    },
-    {
-      "version-id": 2,
-      "timestamp-ms": 5555,
-      "summary": {"user": "some-user"},
-      "schema-id": 1,
-      "default-catalog": "some-catalog",
-      "default-namespace": [],
-      "representations": [
+        },
         {
           "type": "sql",
-          "sql": "select 1 id, 'abc' data",
+          "sql": "select * from foo",
           "dialect": "spark-sql"
         }
       ]
@@ -68,10 +58,6 @@
     {
       "timestamp-ms": 4353,
       "version-id": 1
-    },
-    {
-      "timestamp-ms": 5555,
-      "version-id": 2
     }
   ]
 }

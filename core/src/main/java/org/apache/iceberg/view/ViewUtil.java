@@ -18,14 +18,12 @@
  */
 package org.apache.iceberg.view;
 
-/** View properties that can be set during CREATE/REPLACE view or using updateProperties API. */
-public class ViewProperties {
-  public static final String VERSION_HISTORY_SIZE = "version.history.num-entries";
-  public static final int VERSION_HISTORY_SIZE_DEFAULT = 10;
+import org.apache.iceberg.catalog.TableIdentifier;
 
-  public static final String METADATA_COMPRESSION = "write.metadata.compression-codec";
-  public static final String METADATA_COMPRESSION_DEFAULT = "gzip";
-  public static final String COMMENT = "comment";
+public class ViewUtil {
+  private ViewUtil() {}
 
-  private ViewProperties() {}
+  public static String fullViewName(String catalog, TableIdentifier ident) {
+    return catalog + "." + ident;
+  }
 }

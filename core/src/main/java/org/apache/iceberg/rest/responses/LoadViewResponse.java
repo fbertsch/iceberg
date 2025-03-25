@@ -16,16 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.view;
+package org.apache.iceberg.rest.responses;
 
-/** View properties that can be set during CREATE/REPLACE view or using updateProperties API. */
-public class ViewProperties {
-  public static final String VERSION_HISTORY_SIZE = "version.history.num-entries";
-  public static final int VERSION_HISTORY_SIZE_DEFAULT = 10;
+import java.util.Map;
+import org.apache.iceberg.rest.RESTResponse;
+import org.apache.iceberg.view.ViewMetadata;
+import org.immutables.value.Value;
 
-  public static final String METADATA_COMPRESSION = "write.metadata.compression-codec";
-  public static final String METADATA_COMPRESSION_DEFAULT = "gzip";
-  public static final String COMMENT = "comment";
+@Value.Immutable
+public interface LoadViewResponse extends RESTResponse {
+  String metadataLocation();
 
-  private ViewProperties() {}
+  ViewMetadata metadata();
+
+  Map<String, String> config();
+
+  @Override
+  default void validate() {
+    // nothing to validate as it's not possible to create an invalid instance
+  }
 }

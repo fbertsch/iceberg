@@ -264,7 +264,7 @@ public class MetacatIcebergCatalog extends BaseMetastoreCatalog implements Suppo
         .build();
       dbClient.getApi().createDatabase(catalogName, dbName, createRequestDto);
     } catch (MetacatAlreadyExistsException e) {
-      throw new AlreadyExistsException("Namespace: %s already exists", namespace);
+      throw new AlreadyExistsException("Namespace already exists: %s", namespace);
     }
   }
 
@@ -296,7 +296,7 @@ public class MetacatIcebergCatalog extends BaseMetastoreCatalog implements Suppo
                 ? ImmutableMap.of()
                 : ImmutableMap.copyOf(databaseDto.getMetadata());
     } catch (MetacatNotFoundException e) {
-      throw new NoSuchNamespaceException("Namespace: %s not found.", namespace);
+      throw new NoSuchNamespaceException("Namespace does not exists: %s", namespace.level(1));
     }
   }
 
@@ -335,7 +335,7 @@ public class MetacatIcebergCatalog extends BaseMetastoreCatalog implements Suppo
       dbClient.getApi().updateDatabase(namespace.level(0), namespace.level(1), createRequestDto);
       return true;
     } catch (MetacatNotFoundException e) {
-      throw new NoSuchNamespaceException("Namespace: %s not found.", namespace);
+      throw new NoSuchNamespaceException("Namespace does not exists: %s", namespace.level(1));
     }
   }
 
@@ -355,7 +355,7 @@ public class MetacatIcebergCatalog extends BaseMetastoreCatalog implements Suppo
       dbClient.getApi().updateDatabase(namespace.level(0), namespace.level(1), createRequestDto);
       return true;
     } catch (MetacatNotFoundException e) {
-      throw new NoSuchNamespaceException("Namespace: %s not found.", namespace);
+      throw new NoSuchNamespaceException("Namespace does not exists: %s", namespace.level(1));
     }
   }
 

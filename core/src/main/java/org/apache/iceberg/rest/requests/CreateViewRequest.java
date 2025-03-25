@@ -16,21 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.view;
+package org.apache.iceberg.rest.requests;
 
+import java.util.Map;
+import javax.annotation.Nullable;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.rest.RESTRequest;
+import org.apache.iceberg.view.ViewVersion;
 import org.immutables.value.Value;
 
 @Value.Immutable
-public interface SQLViewRepresentation extends ViewRepresentation {
+public interface CreateViewRequest extends RESTRequest {
+  String name();
+
+  @Nullable
+  String location();
+
+  Schema schema();
+
+  ViewVersion viewVersion();
+
+  Map<String, String> properties();
 
   @Override
-  default String type() {
-    return Type.SQL;
+  default void validate() {
+    // nothing to validate as it's not possible to create an invalid instance
   }
-
-  /** The view query SQL text. */
-  String sql();
-
-  /** The view query SQL dialect. */
-  String dialect();
 }
