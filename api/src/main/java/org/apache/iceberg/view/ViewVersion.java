@@ -65,7 +65,7 @@ public interface ViewVersion {
    * @return the string operation which produced the view version
    */
   default String operation() {
-    return versionId() == 1 ? "create" : "replace";
+    return summary().get("operation");
   }
 
   /** The query output schema at version create time, without aliases */

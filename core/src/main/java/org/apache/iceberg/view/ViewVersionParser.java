@@ -65,7 +65,7 @@ public class ViewVersionParser {
     generator.writeEndObject();
   }
 
-  public static String toJson(ViewVersion version) {
+  static String toJson(ViewVersion version) {
     return JsonUtil.generate(gen -> toJson(version, gen), false);
   }
 

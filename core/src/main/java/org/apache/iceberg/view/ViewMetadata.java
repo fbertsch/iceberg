@@ -22,7 +22,6 @@ import java.io.Serializable;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -35,7 +34,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.immutables.value.Value;
 import org.immutables.value.Value.Style.ImplementationVisibility;
@@ -141,7 +139,6 @@ public interface ViewMetadata extends Serializable {
   }
 
   class Builder {
-    private static final int INITIAL_SCHEMA_ID = 0;
     private static final int LAST_ADDED = -1;
     private final List<ViewVersion> versions;
     private final List<Schema> schemas;
@@ -156,7 +153,6 @@ public interface ViewMetadata extends Serializable {
 
     // internal change tracking
     private Integer lastAddedVersionId = null;
-    private Integer lastAddedSchemaId = null;
 
     // indexes
     private final Map<Integer, ViewVersion> versionsById;
@@ -259,13 +255,8 @@ public interface ViewMetadata extends Serializable {
       return this;
     }
 
-    private int addVersionInternal(ViewVersion newVersion) {
-      int newVersionId = reuseOrCreateNewViewVersionId(newVersion);
-      ViewVersion version = newVersion;
-      if (newVersionId != version.versionId()) {
-        version = ImmutableViewVersion.builder().from(version).versionId(newVersionId).build();
-      }
-
+    private int addVersionInternal(ViewVersion version) {
+      int newVersionId = reuseOrCreateNewViewVersionId(version);
       if (versionsById.containsKey(newVersionId)) {
         boolean addedInBuilder =
             changes(MetadataUpdate.AddViewVersion.class)
@@ -274,44 +265,25 @@ public interface ViewMetadata extends Serializable {
         return newVersionId;
       }
 
-      if (newVersion.schemaId() == LAST_ADDED) {
-        ValidationException.check(
-            lastAddedSchemaId != null, "Cannot set last added schema: no schema has been added");
-        version =
-            ImmutableViewVersion.builder().from(newVersion).schemaId(lastAddedSchemaId).build();
-      }
-
       Preconditions.checkArgument(
           schemasById.containsKey(version.schemaId()),
           "Cannot add version with unknown schema: %s",
           version.schemaId());
 
-      Set<String> dialects = Sets.newHashSet();
-      for (ViewRepresentation repr : version.representations()) {
-        if (repr instanceof SQLViewRepresentation) {
-          SQLViewRepresentation sql = (SQLViewRepresentation) repr;
-          Preconditions.checkArgument(
-              dialects.add(sql.dialect()),
-              "Invalid view version: Cannot add multiple queries for dialect %s",
-              sql.dialect());
-        }
-      }
-
-      versions.add(version);
-      versionsById.put(version.versionId(), version);
-
-      if (null != lastAddedSchemaId && version.schemaId() == lastAddedSchemaId) {
-        changes.add(
-            new MetadataUpdate.AddViewVersion(
-                ImmutableViewVersion.builder().from(version).schemaId(LAST_ADDED).build()));
+      ViewVersion newVersion;
+      if (newVersionId != version.versionId()) {
+        newVersion = ImmutableViewVersion.builder().from(version).versionId(newVersionId).build();
       } else {
-        changes.add(new MetadataUpdate.AddViewVersion(version));
+        newVersion = version;
       }
 
+      versions.add(newVersion);
+      versionsById.put(newVersion.versionId(), newVersion);
+      changes.add(new MetadataUpdate.AddViewVersion(newVersion));
       history.add(
           ImmutableViewHistoryEntry.builder()
-              .timestampMillis(version.timestampMillis())
-              .versionId(version.versionId())
+              .timestampMillis(newVersion.timestampMillis())
+              .versionId(newVersion.versionId())
               .build());
 
       this.lastAddedVersionId = newVersionId;
@@ -323,30 +295,14 @@ public interface ViewMetadata extends Serializable {
       // if the view version already exists, use its id; otherwise use the highest id + 1
       int newVersionId = viewVersion.versionId();
       for (ViewVersion version : versions) {
-        if (sameViewVersion(version, viewVersion)) {
+        if (version.equals(viewVersion)) {
           return version.versionId();
         } else if (version.versionId() >= newVersionId) {
-          newVersionId = version.versionId() + 1;
+          newVersionId = viewVersion.versionId() + 1;
         }
       }
 
       return newVersionId;
-    }
-
-    /**
-     * Checks whether the given view versions would behave the same while ignoring the view version
-     * id, the creation timestamp, and the operation.
-     *
-     * @param one the view version to compare
-     * @param two the view version to compare
-     * @return true if the given view versions would behave the same
-     */
-    private boolean sameViewVersion(ViewVersion one, ViewVersion two) {
-      return Objects.equals(one.summary(), two.summary())
-          && Objects.equals(one.representations(), two.representations())
-          && Objects.equals(one.defaultCatalog(), two.defaultCatalog())
-          && Objects.equals(one.defaultNamespace(), two.defaultNamespace())
-          && one.schemaId() == two.schemaId();
     }
 
     public Builder addSchema(Schema schema) {
@@ -373,8 +329,6 @@ public interface ViewMetadata extends Serializable {
       schemasById.put(newSchema.schemaId(), newSchema);
       changes.add(new MetadataUpdate.AddSchema(newSchema, highestFieldId));
 
-      this.lastAddedSchemaId = newSchemaId;
-
       return newSchemaId;
     }
 
@@ -384,7 +338,7 @@ public interface ViewMetadata extends Serializable {
 
     private int reuseOrCreateNewSchemaId(Schema newSchema) {
       // if the schema already exists, use its id; otherwise use the highest id + 1
-      int newSchemaId = INITIAL_SCHEMA_ID;
+      int newSchemaId = newSchema.schemaId();
       for (Schema schema : schemas) {
         if (schema.sameSchema(newSchema)) {
           return schema.schemaId();
