@@ -1,0 +1,9 @@
+# Default reviewers set from BitBucket migration set as CODEOWNERS
+*    @abozigian @bkeller @jtian @schennuru @tjiang @gigliozzi @gtret @jursetta @yingjianw
+
+# Do not tag humans for review when only dependencies are updated
+**/dependencies.lock
+**/gradle.lockfile
+gradle/**
+gradlew
+gradlew.bat
