@@ -103,7 +103,6 @@ import static com.netflix.iceberg.security.SecurityUtil.getSignerHost;
 import static java.lang.String.format;
 import static org.apache.iceberg.BaseMetastoreTableOperations.CommitStatus.FAILURE;
 import static org.apache.iceberg.BaseMetastoreTableOperations.CommitStatus.SUCCESS;
-import static org.apache.iceberg.TableProperties.CLEANUP_METADATA_ON_COMMIT_FAILURE;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.WRITE_METADATA_LOCATION;
 
@@ -113,6 +112,8 @@ class MetacatClientOps extends BaseMetastoreTableOperations implements Closeable
   private static final String SPARK_PROVIDER = "spark.sql.sources.provider";
   private static final String SPARK_NETFLIX_SECURE_FILEIO_ENABLED = "spark.netflix.secure-fileio-enabled";
   private static final boolean SPARK_NETFLIX_SECURE_FILEIO_ENABLED_DEFAULT = true;
+  private static final String CLEANUP_METADATA_ON_COMMIT_FAILURE = "commit.cleanup-metadata-on-failure";
+  private static final boolean CLEANUP_METADATA_ON_COMMIT_FAILURE_DEFAULT = true;
   private static final Predicate<Exception> RETRY_IF = exc ->
       !exc.getClass().getCanonicalName().contains("Unrecoverable") &&
       !(exc instanceof RemoteSigningAccessDeniedException) &&
@@ -254,19 +255,8 @@ class MetacatClientOps extends BaseMetastoreTableOperations implements Closeable
           tableMetadata = tableMetadata.withAdditionalProperties(finalProperties);
         }
 
-        // Table property takes precedence
-        if (tableMetadata.properties().containsKey(CLEANUP_METADATA_ON_COMMIT_FAILURE) ||
-            conf.get(CLEANUP_METADATA_ON_COMMIT_FAILURE) == null) {
-          return tableMetadata;
-        } else {
-          final ImmutableMap<String, String> properties = ImmutableMap.<String, String>builder()
-              .putAll(tableMetadata.properties())
-              .put(CLEANUP_METADATA_ON_COMMIT_FAILURE, conf.get(CLEANUP_METADATA_ON_COMMIT_FAILURE))
-              .build();
-          return tableMetadata.replaceProperties(properties);
-        }
+        return tableMetadata;
       };
-
 
       warnLatency("refresh metadata from %s", metadataLocationLocal)
           .run(() -> refreshFromMetadataLocation(metadataLocationLocal, RETRY_IF, 20, addReservedProperties));
@@ -893,5 +883,10 @@ class MetacatClientOps extends BaseMetastoreTableOperations implements Closeable
     } catch (Throwable e) {
       LOG.warn("Unable to close S3FileIO instance: {}", fileIO, e);
     }
+  }
+
+  @Override
+  public boolean requireStrictCleanup() {
+    return !conf.getBoolean(CLEANUP_METADATA_ON_COMMIT_FAILURE, CLEANUP_METADATA_ON_COMMIT_FAILURE_DEFAULT);
   }
 }

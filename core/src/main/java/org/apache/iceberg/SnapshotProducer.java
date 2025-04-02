@@ -67,9 +67,6 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableProperties.CLEANUP_METADATA_ON_COMMIT_FAILURE;
-import static org.apache.iceberg.TableProperties.CLEANUP_METADATA_ON_COMMIT_FAILURE_DEFAULT;
-
 @SuppressWarnings("UnnecessaryAnonymousClass")
 abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotProducer.class);
@@ -419,9 +416,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     } catch (CommitStateUnknownException commitStateUnknownException) {
       throw commitStateUnknownException;
     } catch (RuntimeException e) {
-      if (!strictCleanup ||
-              e instanceof CleanableFailure ||
-              base.propertyAsBoolean(CLEANUP_METADATA_ON_COMMIT_FAILURE, CLEANUP_METADATA_ON_COMMIT_FAILURE_DEFAULT)) {
+      if (!strictCleanup || e instanceof CleanableFailure) {
         Exceptions.suppressAndThrow(e, this::cleanAll);
       }
 
