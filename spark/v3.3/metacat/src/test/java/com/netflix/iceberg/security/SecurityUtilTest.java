@@ -70,7 +70,7 @@ public class SecurityUtilTest {
         ImmutableMap.of("grantor", "testUser@netflix.com")
     );
 
-    tableMetadata = SecurityUtil.initializeACL(conf, TableIdentifier.of(catalog, database, tableName), tableMetadata, authPolicy);
+    tableMetadata = SecurityUtil.initializeACL(conf, TableIdentifier.of(catalog, database, tableName), tableMetadata, authPolicy, false);
 
     Assert.assertTrue("ACLs not in table metadata",
         tableMetadata.properties().containsKey(IcebergAclStorage.ACL_PROPERTY_KEY));
@@ -95,7 +95,7 @@ public class SecurityUtilTest {
     Configuration conf2 = new Configuration();
     conf2.set("grant.insert.user", "test2@netflix.com");
     conf2.set("grant.select.user", "test2@netflix.com");
-    tableMetadata = SecurityUtil.initializeACL(conf2, TableIdentifier.of(catalog, database, tableName), tableMetadata, authPolicy);
+    tableMetadata = SecurityUtil.initializeACL(conf2, TableIdentifier.of(catalog, database, tableName), tableMetadata, authPolicy, false);
 
     Assert.assertTrue("ACLs not in table metadata",
         tableMetadata.properties().containsKey(IcebergAclStorage.ACL_PROPERTY_KEY));
@@ -130,7 +130,7 @@ public class SecurityUtilTest {
                 "grant.select.user", "jsmith@netflix.com"
         ));
 
-    tableMetadata = SecurityUtil.initializeACL(conf, TableIdentifier.of(catalog, database, tableName), tableMetadata, authPolicy);
+    tableMetadata = SecurityUtil.initializeACL(conf, TableIdentifier.of(catalog, database, tableName), tableMetadata, authPolicy, false);
 
     Set<Acl> acls = AclJsonParser.fromJson(tableMetadata.properties().get(IcebergAclStorage.ACL_PROPERTY_KEY));
 
@@ -155,7 +155,7 @@ public class SecurityUtilTest {
         ImmutableMap.of(
             "grantor", "testUser@netflix.com"
         ));
-    tableMetadata = SecurityUtil.initializeACL(conf, TableIdentifier.of(catalog, database, tableName), tableMetadata, authPolicy);
+    tableMetadata = SecurityUtil.initializeACL(conf, TableIdentifier.of(catalog, database, tableName), tableMetadata, authPolicy, false);
     Assert.assertTrue("ACLs in table metadata",
         tableMetadata.properties().containsKey(IcebergAclStorage.ACL_PROPERTY_KEY));
 
@@ -181,7 +181,7 @@ public class SecurityUtilTest {
         ImmutableMap.of(
             "other", "missing"
         ));
-    tableMetadata = SecurityUtil.initializeACL(conf2, TableIdentifier.of(catalog, database, tableName), tableMetadata, authPolicy);
+    tableMetadata = SecurityUtil.initializeACL(conf2, TableIdentifier.of(catalog, database, tableName), tableMetadata, authPolicy, false);
     Assert.assertTrue("ACLs in table metadata",
         tableMetadata.properties().containsKey(IcebergAclStorage.ACL_PROPERTY_KEY));
 
@@ -205,7 +205,7 @@ public class SecurityUtilTest {
         ImmutableMap.of(
             "grantor.role", "role@netflix.com"
         ));
-    tableMetadata = SecurityUtil.initializeACL(conf, TableIdentifier.of(catalog, database, tableName), tableMetadata, authPolicy);
+    tableMetadata = SecurityUtil.initializeACL(conf, TableIdentifier.of(catalog, database, tableName), tableMetadata, authPolicy, false);
     Assert.assertTrue("ACLs in table metadata",
         tableMetadata.properties().containsKey(IcebergAclStorage.ACL_PROPERTY_KEY));
 

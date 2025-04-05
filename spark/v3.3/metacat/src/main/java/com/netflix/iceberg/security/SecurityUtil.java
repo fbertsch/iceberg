@@ -186,7 +186,8 @@ public class SecurityUtil {
    * @param metadata   table metadata
    * @param authPolicy
    */
-  public static TableMetadata initializeACL(Configuration conf, TableIdentifier identifier, TableMetadata metadata, AuthPolicy authPolicy){
+  public static TableMetadata initializeACL(Configuration conf, TableIdentifier identifier, TableMetadata metadata, AuthPolicy authPolicy,
+                                            boolean allowEmptyAcl){
     if(metadata.properties().containsKey(ACL_PROPERTY_KEY)) {
       return metadata;
     }
@@ -196,7 +197,7 @@ public class SecurityUtil {
     Set<Acl> acls = getAclsFromTablePropertiesAndConf(conf, metadata, resource, localPrincipal);
 
     // No explicit grants set from conf and properties
-    if (acls.isEmpty()) {
+    if (acls.isEmpty() && !allowEmptyAcl) {
       if (localPrincipal.type() == PrincipalType.USER) {
         acls.add(new Acl(singleton(localPrincipal), singleton(Privilege.ALL), singleton(resource), localPrincipal, true));
       } else if (authPolicy == AuthPolicy.STRICT && localPrincipal.type() == PrincipalType.APPLICATION) {
@@ -211,7 +212,7 @@ public class SecurityUtil {
     }
 
     // Add local identity as grantor if no grantor specified by user
-    if(acls.stream().noneMatch(acl -> acl.withGrant() != null && acl.withGrant().booleanValue())) {
+    if (!allowEmptyAcl && acls.stream().noneMatch(acl -> acl.withGrant() != null && acl.withGrant().booleanValue())) {
       acls.add(new Acl(singleton(localPrincipal), singleton(Privilege.ALL), singleton(resource), localPrincipal, true));
     }
 

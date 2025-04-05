@@ -366,7 +366,8 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
 
         //Always ensure that an ACL entry exists for secure tables
         try {
-          metadata = SecurityUtil.initializeACL(conf, identifier, metadata, authPolicy);
+          boolean allowEmptyAcl = DefinitionMetadata.getOwnerUserId(definitionMetadata).startsWith("data.project.");
+          metadata = SecurityUtil.initializeACL(conf, identifier, metadata, authPolicy, allowEmptyAcl);
         } catch (SecurityException e) {
           if (!DefinitionMetadata.isAuthPolicyPermissive(definitionMetadata)) {
             throw e;
@@ -379,7 +380,8 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
             DefinitionMetadata.markSecure(definitionMetadata);
           }
           metadata = metadata.removeProperties(a -> a.equals(INITIALIZE_ACL));
-          metadata = SecurityUtil.initializeACL(conf, identifier, metadata, STRICT);
+          boolean allowEmptyAcl = DefinitionMetadata.getOwnerUserId(definitionMetadata).startsWith("data.project.");
+          metadata = SecurityUtil.initializeACL(conf, identifier, metadata, STRICT, allowEmptyAcl);
         }
         // For presto to create table in secure location
         metadata = updateSecureLocation(metadata);
