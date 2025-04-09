@@ -420,7 +420,7 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO {
       if (null != createStack) {
         String trace =
             Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
-        LOG.warn("Unclosed S3FileIO instance created by:\n\t{}", trace);
+        LOG.debug("Unclosed S3FileIO instance created by:\n\t{}", trace);
       }
     }
   }

@@ -250,7 +250,7 @@ public class ResolvingFileIO implements HadoopConfigurable, DelegateFileIO {
       if (null != createStack) {
         String trace =
             Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
-        LOG.warn("Unclosed ResolvingFileIO instance created by:\n\t{}", trace);
+        LOG.debug("Unclosed ResolvingFileIO instance created by:\n\t{}", trace);
       }
     }
   }
