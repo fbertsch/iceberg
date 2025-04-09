@@ -1,10 +1,9 @@
 package com.netflix.iceberg.spark.source;
 
 import java.util.List;
-import com.netflix.iceberg.metacat.MetacatSparkCatalog;
 import java.util.Map;
 
-import com.netflix.iceberg.metacat.NetflixSparkCatalog;
+import com.netflix.iceberg.NetflixSparkCatalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.source.IcebergSource;
 import org.apache.spark.sql.SparkSession;

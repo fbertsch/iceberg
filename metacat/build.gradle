@@ -19,12 +19,11 @@ dependencies {
   api project(':iceberg-core')
   api project(':iceberg-common')
   api project(':iceberg-data')
-  implementation(project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}")) {
+  compileOnly(project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}")) {
     exclude module: 'iceberg-arrow'
   }
   api project(':iceberg-aws')
   api project(':bdp-view')
-  implementation project(':iceberg-metacat')
   implementation libs.caffeine
   implementation "com.netflix.nflxe2etokens:nflx-e2etokens-common:0.13.0"
   api("netflix:metatron-ipc-common:1.307.6") { dep ->
