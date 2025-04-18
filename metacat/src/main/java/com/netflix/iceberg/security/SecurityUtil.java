@@ -75,10 +75,7 @@ public class SecurityUtil {
   public static final String COMMON_ACCESS_ROLE_ID = "jOmLWubLeyaS2qODuDknRYoChhZVbHDb";
   public static final Set<NetflixPrincipal> COMMON_ACCESS_GROUPS = ImmutableSet.of(NetflixPrincipal.group(COMMON_ACCESS_ROLE_ID));
   static final String WAREHOUSE_PREFIX = "iceberg/warehouse";
-  static final String SECURE_DATABASES = "netflix.warehouse.secure.databases";
   static final String STRICT_DATABASES = "netflix.warehouse.secure.strict.databases";
-  static final String SECURE_DATABASES_DEFAULT = "secure";
-  static final String NEW_TABLE_ALWAYS_SECURE = "netflix.warehouse.secure.always";
   static final String SAVE_ACL_AS_ID = "netflix.warehouse.secure.save-acl-as-id";
   private static final ImmutableMap<String, PrincipalType> GRANTOR_TYPES = ImmutableMap.of(
     "grantor.role", PrincipalType.GROUP,
@@ -446,29 +443,10 @@ public class SecurityUtil {
     return certBuilder.toString();
   }
 
-  /**
-   * Return whether the table identifier should be secure or not.
-   *
-   * @param conf config
-   * @param tableIdentifier identifier
-   * @return secure flag
-   */
-  public static boolean isSecureDatabase(Configuration conf, TableIdentifier tableIdentifier) {
-    String database = tableIdentifier.namespace().level(1);
-
-    List<String> secureDatabases = Arrays.asList(conf.getStrings(SECURE_DATABASES, SECURE_DATABASES_DEFAULT));
-
-    return secureDatabases.contains(database);
-  }
-
   public static boolean isStrictDatabase(Configuration conf, TableIdentifier tableIdentifier) {
     String database = tableIdentifier.namespace().level(1);
     Collection<String> strictDataBases = conf.getStringCollection(STRICT_DATABASES);
     return strictDataBases.contains(database);
-  }
-
-  public static boolean isNewTableAlwaysSecure(Configuration conf) {
-    return conf.getBoolean(NEW_TABLE_ALWAYS_SECURE, false);
   }
 
   public static boolean isUseSecureLocation(Configuration conf) {

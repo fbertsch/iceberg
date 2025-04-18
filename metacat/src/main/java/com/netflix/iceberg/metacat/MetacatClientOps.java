@@ -344,8 +344,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
         metadata = metadata.replaceSortOrder(sortOrderFromString(metadata.schema(), metadata.properties().get("sort-order")));
       }
 
-      boolean localSecure = DefinitionMetadata.isSecure(definitionMetadata) || shouldCreateSecureTable();
-      if (localSecure && conf.getBoolean(SPARK_NETFLIX_SECURE_FILEIO_ENABLED, SPARK_NETFLIX_SECURE_FILEIO_ENABLED_DEFAULT)) {
+      if (conf.getBoolean(SPARK_NETFLIX_SECURE_FILEIO_ENABLED, SPARK_NETFLIX_SECURE_FILEIO_ENABLED_DEFAULT)) {
         // If a table is being created, signal to the signing service
         securityContext.create(true);
         metadata = updateSecureLocation(metadata);
@@ -750,9 +749,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
   @Override
   public TableOperations temp(TableMetadata uncommittedMetadata) {
     if (isCreateNewTable()) {
-      boolean localSecure = uncommittedMetadata.propertyAsBoolean(SECURE_FLAG, false) ||
-              shouldCreateSecureTable();
-      if (localSecure && conf.getBoolean(SPARK_NETFLIX_SECURE_FILEIO_ENABLED, SPARK_NETFLIX_SECURE_FILEIO_ENABLED_DEFAULT)) {
+      if (conf.getBoolean(SPARK_NETFLIX_SECURE_FILEIO_ENABLED, SPARK_NETFLIX_SECURE_FILEIO_ENABLED_DEFAULT)) {
         uncommittedMetadata = updateSecureLocation(uncommittedMetadata);
 
         //The purpose of this existence check is actually to trigger the token
@@ -813,10 +810,6 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
         return MetacatClientOps.this.newSnapshotId();
       }
     };
-  }
-
-  private boolean shouldCreateSecureTable() {
-    return SecurityUtil.isSecureDatabase(conf, identifier) || SecurityUtil.isNewTableAlwaysSecure(conf);
   }
 
   private boolean isCreateNewTable() {
