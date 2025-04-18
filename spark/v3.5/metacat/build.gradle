@@ -19,7 +19,6 @@ dependencies {
   api project(':iceberg-core')
   api project(':iceberg-common')
   api project(':iceberg-data')
-  implementation project(':iceberg-metacat')
   implementation(project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}")) {
     exclude module: 'iceberg-arrow'
   }

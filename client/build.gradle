@@ -151,7 +151,6 @@ dependencies {
   //  for mulitple versions of Spark like 3.3 and 3.5
   integrationCompileOnly(project(':iceberg-spark:iceberg-metacat-spark-3.3'))
   integrationCompileOnly(project(':iceberg-parquet'))
-  integrationCompileOnly(project(':iceberg-metacat'))
   integrationCompileOnly(libs.hadoop2.client)
   integrationCompileOnly("org.apache.hadoop:hadoop-mapreduce-client-core")
   integrationCompileOnly(libs.parquet.hadoop.bundle)
