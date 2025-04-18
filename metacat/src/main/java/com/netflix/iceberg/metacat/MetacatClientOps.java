@@ -32,6 +32,7 @@ import com.netflix.spectator.api.Spectator;
 import com.netflix.spectator.ipc.IpcLogger;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.Schema;
@@ -118,6 +119,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
   private static final boolean SPARK_NETFLIX_SECURE_FILEIO_ENABLED_DEFAULT = true;
   private static final String CLEANUP_METADATA_ON_COMMIT_FAILURE = "commit.cleanup-metadata-on-failure";
   private static final boolean CLEANUP_METADATA_ON_COMMIT_FAILURE_DEFAULT = true;
+  private static final String NETFLIX_METACAT_FILE_IO_IMPL = "netflix.metacat.io-impl";
   private static final Predicate<Exception> RETRY_IF = exc ->
       !exc.getClass().getCanonicalName().contains("Unrecoverable") &&
       !(exc instanceof RemoteSigningAccessDeniedException) &&
@@ -694,7 +696,10 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
         throw new UncheckedIOException(e);
       }
 
-      if (secure && conf.getBoolean(SPARK_NETFLIX_SECURE_FILEIO_ENABLED, SPARK_NETFLIX_SECURE_FILEIO_ENABLED_DEFAULT)) {
+      String fileIOImpl = conf.get(NETFLIX_METACAT_FILE_IO_IMPL);
+      if (!Strings.isNullOrEmpty(fileIOImpl)) {
+        fileIO = CatalogUtil.loadFileIO(fileIOImpl, Collections.emptyMap(), conf);
+      } else if (secure && conf.getBoolean(SPARK_NETFLIX_SECURE_FILEIO_ENABLED, SPARK_NETFLIX_SECURE_FILEIO_ENABLED_DEFAULT)) {
         S3ClientSupplier clientSupplier = createS3ClientSupplier(authStrategy);
         fileIO = new MixedFileIO(conf, clientSupplier, properties);
       } else if (conf.getBoolean("iceberg.s3fileio-enabled", false)) {
