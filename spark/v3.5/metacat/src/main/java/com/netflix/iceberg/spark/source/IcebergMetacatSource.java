@@ -1,7 +1,6 @@
 package com.netflix.iceberg.spark.source;
 
 import java.util.List;
-import com.netflix.iceberg.metacat.MetacatSparkCatalog;
 import java.util.Map;
 
 import com.netflix.iceberg.metacat.NetflixSparkCatalog;

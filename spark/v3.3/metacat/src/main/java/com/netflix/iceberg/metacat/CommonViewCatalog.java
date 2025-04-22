@@ -59,6 +59,30 @@ public class CommonViewCatalog implements ViewCatalog {
     }
   }
 
+  public View createView(
+          Identifier ident,
+          String sql,
+          String currentCatalog,
+          String[] currentNamespace,
+          StructType schema,
+          String[] queryColumnNames,
+          String[] columnAliases,
+          String[] columnComments,
+          Map<String, String> properties) throws ViewAlreadyExistsException, NoSuchNamespaceException {
+    String viewIdentifier = buildViewIdentifier(ident);
+    ViewDefinition viewDefinition = ViewDefinition.of(
+            sql,
+            SparkSchemaUtil.convert(schema),
+            currentCatalog,
+            Arrays.asList(currentNamespace));
+    try {
+      lazyViews().create(viewIdentifier, viewDefinition, properties);
+      return loadUpdatedView(ident);
+    } catch (AlreadyExistsException e) {
+      throw new ViewAlreadyExistsException(ident);
+    }
+  }
+
   @Override
   public void replaceView(
       Identifier ident,
@@ -77,6 +101,35 @@ public class CommonViewCatalog implements ViewCatalog {
       lazyViews().replace(viewIdentifier, viewDefinition, properties);
     } catch (NotFoundException e) {
       throw new NoSuchViewException(ident, e);
+    }
+  }
+
+  /**
+   * ReplaceView() is not part of the OSS ViewCatalog Interface but has been added as a default method in it by Netflix.
+   * The default method implementation has a race condition and is not atomic, hence Netflix Catalog implementation
+   * overrides it to make it atomic, and also copy over old view's relevant metadata, like properties.
+   */
+  @SuppressWarnings("unused")
+  public void replaceView(
+          Identifier ident,
+          String sql,
+          String currentCatalog,
+          String[] currentNamespace,
+          StructType schema,
+          String[] queryColumnNames,
+          String[] columnAliases,
+          String[] columnComments,
+          Map<String, String> properties) throws NoSuchViewException, NoSuchNamespaceException {
+    String viewIdentifier = buildViewIdentifier(ident);
+    ViewDefinition viewDefinition = ViewDefinition.of(
+            sql,
+            SparkSchemaUtil.convert(schema),
+            currentCatalog,
+            Arrays.asList(currentNamespace));
+    try {
+      lazyViews().replace(viewIdentifier, viewDefinition, properties);
+    } catch (NotFoundException e) {
+      throw new NoSuchViewException(ident);
     }
   }
 
@@ -149,6 +202,14 @@ public class CommonViewCatalog implements ViewCatalog {
       return lazyViews().load(viewIdentifier);
     } catch (NotFoundException e) {
       throw new NoSuchViewException(ident, e);
+    }
+  }
+
+  private View loadUpdatedView(Identifier ident) {
+    try {
+      return loadView(ident);
+    } catch (NoSuchViewException e) {
+      throw new RuntimeException("Unable to load and return the updated view.", e);
     }
   }
 
