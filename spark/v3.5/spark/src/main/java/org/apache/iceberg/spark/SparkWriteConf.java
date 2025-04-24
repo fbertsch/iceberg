@@ -172,6 +172,17 @@ public class SparkWriteConf {
     return FileFormat.fromString(valueAsString);
   }
 
+  // Netflix: Batch pattern compatibility mode
+  public boolean behaviorCompatibility() {
+    return confParser
+        .booleanConf()
+        .option("spark.behavior.compatibility")
+        .sessionConf("spark.sql.iceberg.behavior.compatibility")
+        .tableProperty("spark.behavior.compatibility")
+        .defaultValue(false)
+        .parse();
+  }
+
   private String dataCompressionCodec() {
     switch (dataFileFormat()) {
       case PARQUET:

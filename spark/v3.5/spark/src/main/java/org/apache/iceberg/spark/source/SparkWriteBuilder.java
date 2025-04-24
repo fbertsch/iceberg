@@ -52,7 +52,6 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   private final LogicalWriteInfo writeInfo;
   private final StructType dsSchema;
   private final String overwriteMode;
-  private final boolean behaviorCompatibility;
   private final String rewrittenFileSetId;
   private boolean overwriteDynamic = false;
   private boolean overwriteByFilter = false;
@@ -65,8 +64,6 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   SparkWriteBuilder(SparkSession spark, Table table, String branch, LogicalWriteInfo info) {
     this.spark = spark;
     this.table = table;
-    this.behaviorCompatibility = PropertyUtil.propertyAsBoolean(
-        table.properties(), "spark.behavior.compatibility", false);
     this.writeConf = new SparkWriteConf(spark, table, branch, info.options());
     this.writeInfo = info;
     this.dsSchema = info.schema();
@@ -122,7 +119,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   public Write build() {
 
     // Netflix: Batch pattern compatibility mode
-    if (!overwriteByFilter && !overwriteFiles && behaviorCompatibility) {
+    if (!overwriteByFilter && !overwriteFiles && writeConf.behaviorCompatibility()) {
       overwriteDynamicPartitions();
     }
 
