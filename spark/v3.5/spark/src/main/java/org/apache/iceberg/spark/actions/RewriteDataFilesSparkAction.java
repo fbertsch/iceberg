@@ -30,8 +30,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.RewriteJobOrder;
@@ -51,6 +53,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Predicates;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -89,6 +92,7 @@ public class RewriteDataFilesSparkAction
   private final Table table;
 
   private Expression filter = Expressions.alwaysTrue();
+  private Predicate<DataFile> fileFilter = Predicates.alwaysTrue();
   private int maxConcurrentFileGroupRewrites;
   private int maxCommits;
   private boolean partialProgressEnabled;
@@ -147,6 +151,12 @@ public class RewriteDataFilesSparkAction
   }
 
   @Override
+  public RewriteDataFiles fileFilter(Predicate<DataFile> fileFilter) {
+    this.fileFilter = fileFilter;
+    return this;
+  }
+
+  @Override
   public RewriteDataFiles.Result execute() {
     if (table.currentSnapshot() == null) {
       return EMPTY_RESULT;
@@ -181,12 +191,14 @@ public class RewriteDataFilesSparkAction
 
   StructLikeMap<List<List<FileScanTask>>> planFileGroups(long startingSnapshotId) {
     CloseableIterable<FileScanTask> fileScanTasks =
-        table
-            .newScan()
-            .useSnapshot(startingSnapshotId)
-            .filter(filter)
-            .ignoreResiduals()
-            .planFiles();
+        CloseableIterable.filter(
+            table
+                .newScan()
+                .useSnapshot(startingSnapshotId)
+                .filter(filter)
+                .ignoreResiduals()
+                .planFiles(),
+            fileScanTask -> fileFilter.test(fileScanTask.file()));
 
     try {
       StructType partitionType = table.spec().partitionType();

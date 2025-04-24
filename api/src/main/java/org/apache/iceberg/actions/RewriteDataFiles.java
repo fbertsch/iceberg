@@ -19,6 +19,9 @@
 package org.apache.iceberg.actions;
 
 import java.util.List;
+import java.util.function.Predicate;
+
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
@@ -170,6 +173,14 @@ public interface RewriteDataFiles
    * @return this for chaining
    */
   RewriteDataFiles filter(Expression expression);
+
+  /**
+   * A user provided predicate for filtering out data files to include in the rewrite.
+   *
+   * @param fileFilter A predicate that returns true to include a file, false otherwise
+   * @return this for chaining
+   */
+  RewriteDataFiles fileFilter(Predicate<DataFile> fileFilter);
 
   /**
    * A map of file group information to the results of rewriting that file group. If the results are
