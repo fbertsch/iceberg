@@ -38,6 +38,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.IntStream;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundSetPredicate;
@@ -659,6 +660,11 @@ public class TestHelpers {
 
     @Override
     public DataFile copyWithoutStats() {
+      return this;
+    }
+
+    @Override
+    public DataFile copyWithStats(Set<Integer> requestedColumns) {
       return this;
     }
 
