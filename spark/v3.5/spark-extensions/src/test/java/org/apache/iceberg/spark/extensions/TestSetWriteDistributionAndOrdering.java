@@ -202,8 +202,7 @@ public class TestSetWriteDistributionAndOrdering extends SparkExtensionsTestBase
 
     table.refresh();
 
-    String distributionMode = table.properties().get(TableProperties.WRITE_DISTRIBUTION_MODE);
-    Assert.assertEquals("Distribution mode must match", "none", distributionMode);
+    Assert.assertFalse(table.properties().containsKey(TableProperties.WRITE_DISTRIBUTION_MODE));
 
     SortOrder expected =
         SortOrder.builderFor(table.schema())
@@ -213,6 +212,25 @@ public class TestSetWriteDistributionAndOrdering extends SparkExtensionsTestBase
             .asc("id")
             .build();
     Assert.assertEquals("Sort order must match", expected, table.sortOrder());
+  }
+
+  @Test
+  public void testSetWriteLocallyOrderedToPartitionedTable() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, category string) USING iceberg PARTITIONED BY (id)",
+        tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertTrue("Table should start unsorted", table.sortOrder().isUnsorted());
+
+    sql("ALTER TABLE %s WRITE LOCALLY ORDERED BY category DESC", tableName);
+
+    table.refresh();
+
+    Assert.assertFalse(table.properties().containsKey(TableProperties.WRITE_DISTRIBUTION_MODE));
+
+    SortOrder expected =
+        SortOrder.builderFor(table.schema()).withOrderId(1).desc("category").build();
+    Assert.assertEquals("Sort order must match", table.sortOrder(), expected);
   }
 
   @Test
@@ -251,6 +269,13 @@ public class TestSetWriteDistributionAndOrdering extends SparkExtensionsTestBase
 
     SortOrder expected = SortOrder.builderFor(table.schema()).withOrderId(1).asc("id").build();
     Assert.assertEquals("Sort order must match", expected, table.sortOrder());
+
+    sql("ALTER TABLE %s WRITE LOCALLY ORDERED BY id", tableName);
+
+    table.refresh();
+
+    String newDistributionMode = table.properties().get(TableProperties.WRITE_DISTRIBUTION_MODE);
+    Assert.assertEquals("Distribution mode must match", newDistributionMode, distributionMode);
   }
 
   @Test
