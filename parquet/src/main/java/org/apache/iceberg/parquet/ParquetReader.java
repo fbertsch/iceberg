@@ -32,7 +32,10 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.io.ParquetDecodingException;
 import org.apache.parquet.schema.MessageType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ParquetReader<T> extends CloseableGroup implements CloseableIterable<T> {
   private final InputFile input;
@@ -94,6 +97,8 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   }
 
   private static class FileIterator<T> implements CloseableIterator<T> {
+    private static final Logger LOG = LoggerFactory.getLogger(FileIterator.class);
+
     private final ParquetFileReader reader;
     private final boolean[] shouldSkip;
     private final ParquetValueReader<T> model;
@@ -122,18 +127,28 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
     @Override
     public T next() {
-      if (valuesRead >= nextRowGroupStart) {
-        advance();
-      }
+      try {
+        if (valuesRead >= nextRowGroupStart) {
+          advance();
+        }
 
-      if (reuseContainers) {
-        this.last = model.read(last);
-      } else {
-        this.last = model.read(null);
-      }
-      valuesRead += 1;
+        if (reuseContainers) {
+          this.last = model.read(last);
+        } else {
+          this.last = model.read(null);
+        }
+        valuesRead += 1;
 
-      return last;
+        return last;
+      }
+      catch (ParquetDecodingException e) {
+        if(reader != null) {
+          // Knowing the exact S3 key file that the executor failed on is essential for
+          // identifying bad nodes in a cluster that could be producing corrupt data.
+          LOG.error("Error decoding Parquet file {}", reader.getFile(), e);
+        }
+        throw e;
+      }
     }
 
     private void advance() {
