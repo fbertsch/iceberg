@@ -19,6 +19,7 @@
 
 package com.netflix.iceberg.metacat;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.netflix.iceberg.metacat.MetacatClientOps;
 import com.netflix.iceberg.properties.JanitorPropertiesHandler;
 import com.netflix.iceberg.properties.NdcPropertiesHandler;
@@ -39,6 +40,7 @@ import org.apache.iceberg.SortField;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
+import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
@@ -211,7 +213,8 @@ public class TestMetacatClientOps {
             TableMetadata updated = tableMetadata.replaceProperties(
                     ImmutableMap.of(
                             "netflix.ndc.pi", "no",
-                            "netflix.ndc.business_unit", "ads"
+                            "netflix.ndc.business_unit", "ads",
+                            "netflix.ndc.labels", "ok_to_delete"
                     )
             );
             clientOps.doCommit(tableMetadata, updated);
@@ -225,9 +228,14 @@ public class TestMetacatClientOps {
             Assert.assertEquals(
                     URI.create("https://ndc.cluster.us-east-1.prod.cloud.netflix.net:8443/api/v0/metadata"),
                     capturedPut.getURI());
+            JsonNode actualRequestPayload = JsonUtil.mapper().readTree(capturedPut.getEntity().getContent());
+            JsonNode expectedRequestPayload = JsonUtil.mapper().readTree(
+                    "{\"dlmDataCategoryTags\":{\"pi\":\"no\",\"business_unit\":\"ads\"},"
+                                + "\"labels\":[\"ok_to_delete\"],"
+                                + "\"name\":\"ndc://hive:prod/prodhive/vault/oca_session_f\"}");
             Assert.assertEquals(
-                    "{\"dlmDataCategoryTags\":{\"pi\":\"no\",\"business_unit\":\"ads\"},\"name\":\"ndc://hive:prod/prodhive/vault/oca_session_f\"}",
-                    IOUtils.toString(capturedPut.getEntity().getContent()));
+                    expectedRequestPayload,
+                    actualRequestPayload);
         }
     }
 

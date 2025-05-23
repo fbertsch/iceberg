@@ -1,6 +1,7 @@
 package com.netflix.iceberg.properties;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.netflix.iceberg.metacat.OperationContext;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.http.HttpEntity;
@@ -14,6 +15,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import com.netflix.metatron.ipc.security.MetatronSslContext;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -34,6 +36,10 @@ public class NdcPropertiesHandler implements ExternalPropertiesHandler {
   public static final String NDC_PROD_PREFIX = "netflix.ndc.";
   public static final String NDC_URL = "https://ndc.cluster.us-east-1.prod.cloud.netflix.net:8443/api/v0/metadata";
   public static final Set<String> NDC_CATEGORY_KEYS = ImmutableSet.of("pi", "business_unit");
+  public static final String NDC_LABELS_KEY = "labels";
+  public static final String NDC_NAME_KEY = "name";
+  public static final String NDC_DLM_DATA_CATEGORY_TAGS_KEY = "dlmDataCategoryTags";
+  public static final String TESTHIVE_CATALOG_NAME = "testhive";
 
   private static HttpClient httpClient;
 
@@ -45,7 +51,8 @@ public class NdcPropertiesHandler implements ExternalPropertiesHandler {
     String catalog = namespace.level(0);
     String schema = namespace.level(1);
     String table = tableIdentifier.name();
-    return String.format("ndc://hive:prod/%s/%s/%s", catalog, schema, table).toLowerCase();
+    String env = TESTHIVE_CATALOG_NAME.equals(catalog) ? "test" : "prod";
+    return String.format("ndc://hive:%s/%s/%s/%s", env, catalog, schema, table).toLowerCase();
   }
 
   private static synchronized HttpClient getHttpClient() {
@@ -65,7 +72,7 @@ public class NdcPropertiesHandler implements ExternalPropertiesHandler {
 
   public static Map<String, String> readNdc(TableIdentifier tableIdentifier, Supplier<HttpClient> httpClientSupplier) {
     String ndcName = getQualifiedNameStr(tableIdentifier);
-    HttpUriRequest request = RequestBuilder.get(NDC_URL).addParameter("name", ndcName).build();
+    HttpUriRequest request = RequestBuilder.get(NDC_URL).addParameter(NDC_NAME_KEY, ndcName).build();
     try (CloseableHttpResponse response = (CloseableHttpResponse) httpClientSupplier.get().execute(request)) {
       int statusCode = response.getStatusLine().getStatusCode();
       HttpEntity responseEntity = response.getEntity();
@@ -76,7 +83,7 @@ public class NdcPropertiesHandler implements ExternalPropertiesHandler {
       } else {
         JsonNode responseJson = JsonUtil.mapper().readTree(responseEntity.getContent());
         if (responseJson != null) {
-          JsonNode dataCategoryTags = responseJson.path(0).path("dlmDataCategoryTags");
+          JsonNode dataCategoryTags = responseJson.path(0).path(NDC_DLM_DATA_CATEGORY_TAGS_KEY);
           Map<String, String> properties = new HashMap<>();
           for (String key : NDC_CATEGORY_KEYS) {
             if (dataCategoryTags.has(key)) {
@@ -98,7 +105,8 @@ public class NdcPropertiesHandler implements ExternalPropertiesHandler {
       Map<String, String> ndcProps,
       Supplier<HttpClient> httpClientSupplier) {
 
-    if (NDC_CATEGORY_KEYS.stream().anyMatch(ndcProps::containsKey)) {
+    if (NDC_CATEGORY_KEYS.stream().anyMatch(ndcProps::containsKey)
+        || ndcProps.containsKey(NDC_LABELS_KEY)) {
 
       String ndcName = getQualifiedNameStr(tableIdentifier);
 
@@ -106,13 +114,25 @@ public class NdcPropertiesHandler implements ExternalPropertiesHandler {
           .filter(e -> NDC_CATEGORY_KEYS.contains(e.getKey()))
           .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-      HttpPut request = new HttpPut(NDC_URL);
+      Set<String> labels = Arrays.stream(ndcProps.getOrDefault(NDC_LABELS_KEY, "").split(","))
+          .map(String::trim)
+          .filter(label -> !label.isEmpty())
+          .collect(Collectors.toSet());
 
       try {
-        request.setEntity(new StringEntity(
-            "{\"dlmDataCategoryTags\":" + JsonUtil.mapper().writeValueAsString(dlmCategoryTags) +
-                ",\"name\":\"" + ndcName + "\"}",
-            ContentType.APPLICATION_JSON));
+        ObjectNode payload = JsonUtil.mapper().createObjectNode();
+        payload.put(NDC_NAME_KEY, ndcName);
+
+        if (!dlmCategoryTags.isEmpty()) {
+          payload.putPOJO(NDC_DLM_DATA_CATEGORY_TAGS_KEY, dlmCategoryTags);
+        }
+
+        if (!labels.isEmpty()) {
+          payload.putPOJO(NDC_LABELS_KEY, labels);
+        }
+
+        HttpPut request = new HttpPut(NDC_URL);
+        request.setEntity(new StringEntity(payload.toString(), ContentType.APPLICATION_JSON));
 
         try (CloseableHttpResponse response = (CloseableHttpResponse) httpClientSupplier.get().execute(request)) {
           int statusCode = response.getStatusLine().getStatusCode();
