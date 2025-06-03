@@ -268,7 +268,24 @@ public class SyncSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
 
   @Override
   public Offset reportLatestOffset() {
-    return null;
+    Snapshot latestSnapshot = table.currentSnapshot();
+
+    if (latestSnapshot == null) {
+      return StreamingOffset.START_OFFSET;
+    }
+
+    if (latestSnapshot.timestampMillis() < fromTimestamp) {
+      return StreamingOffset.START_OFFSET;
+    }
+
+    // Use the complete StreamingOffset constructor with all fields
+    return new StreamingOffset(
+            latestSnapshot.snapshotId(),
+            addedFilesCount(latestSnapshot),
+            false,
+            latestSnapshot.timestampMillis(),
+            PropertyUtil.propertyAsLong(latestSnapshot.summary(), SnapshotSummary.TOTAL_RECORDS_PROP, -1)
+    );
   }
 
   private long addedFilesCount(Snapshot snapshot) {
