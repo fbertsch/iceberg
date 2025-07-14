@@ -200,7 +200,7 @@ public class SecurityUtil {
         acls.add(new Acl(singleton(localPrincipal), singleton(Privilege.ALL), singleton(resource), localPrincipal, true));
       } else if (authPolicy == AuthPolicy.STRICT && localPrincipal.type() == PrincipalType.APPLICATION) {
         if (getMembershipChecker(conf).isMember(localPrincipal, COMMON_ACCESS_GROUPS)) {
-          acls.add(new Acl(COMMON_ACCESS_GROUPS, Sets.newHashSet(com.netflix.bdp.security.authorization.Privilege.ALL), Sets.newHashSet(resource), localPrincipal, false));
+          acls.add(new Acl(COMMON_ACCESS_GROUPS, Sets.newHashSet(com.netflix.bdp.security.authorization.Privilege.ALL), Sets.newHashSet(resource), localPrincipal, true));
         } else {
           throw new RuntimeException("Failed to create table: user account not found and application account "
               + localPrincipal.getName() + " is not member of " + COMMON_ACCESS_ROLE + ". See more details at: "
@@ -210,7 +210,7 @@ public class SecurityUtil {
     }
 
     // Add local identity as grantor if no grantor specified by user
-    if (!allowEmptyAcl && acls.stream().noneMatch(acl -> acl.withGrant() != null && acl.withGrant().booleanValue())) {
+    if (!allowEmptyAcl && acls.stream().noneMatch(acl -> acl.withGrant() != null && acl.withGrant().booleanValue()) && localPrincipal.type() == PrincipalType.USER) {
       acls.add(new Acl(singleton(localPrincipal), singleton(Privilege.ALL), singleton(resource), localPrincipal, true));
     }
 
