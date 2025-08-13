@@ -350,7 +350,7 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
         metadata = updateSecureLocation(metadata);
         securityContext.setCreationLocation(metadata.location());
         // Add auth_policy for new table
-        AuthPolicy authPolicy = getAuthPolicy();
+        AuthPolicy authPolicy = AuthPolicy.STRICT;
         DefinitionMetadata.setAuthPolicy(definitionMetadata, authPolicy);
         // Set instance `secure` so that io() is initialized as secure, which will be used for writing meta json
         this.secure = true;
@@ -663,11 +663,6 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
 
   private static boolean isMigratedFromHive(TableMetadata metadata) {
     return Boolean.parseBoolean(metadata.properties().getOrDefault("migrated-from-hive", "false"));
-  }
-
-  private AuthPolicy getAuthPolicy() {
-    return SecurityUtil.isStrictDatabase(this.conf, this.identifier) ? AuthPolicy.STRICT :
-            AuthPolicy.valueOf(this.conf.get("spark.netflix.authz-policy", AuthPolicy.PERMISSIVE.name()));
   }
 
   private TableMetadata updateSecureLocation(TableMetadata metadata) {
