@@ -19,9 +19,6 @@
 
 package com.netflix.iceberg.metacat;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.netflix.metacat.client.Client;
 import com.netflix.metacat.common.dto.DatabaseDto;
 import com.netflix.metacat.common.dto.TableDto;
@@ -33,10 +30,10 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.util.JsonUtil;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 public class MetacatUtil
@@ -215,6 +212,8 @@ public class MetacatUtil
             .withDataTypeContext("hive")
             .withRetryer(getRetryer(conf))
             .withRequestOptions(getRequestOptions(conf))
+            .withRequestInterceptor(template ->
+                    template.header("X-Netflix-Iceberg-Version", IcebergBuild.version()))
             .build();
   }
 
