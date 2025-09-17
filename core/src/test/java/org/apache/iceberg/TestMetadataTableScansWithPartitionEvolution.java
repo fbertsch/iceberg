@@ -40,6 +40,7 @@ import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.jupiter.api.TestTemplate;
 
 public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableScanTestBase {
   public TestMetadataTableScansWithPartitionEvolution(int formatVersion) {
@@ -163,6 +164,22 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
     validatePartition(entries, 0, 3);
     validatePartition(entries, 1, 2);
     validatePartition(entries, 1, 3);
+  }
+
+  @Test
+  public void testPartitionSpecEvolutionSourceFieldMissing() throws IOException {
+    // Drop partition field
+    table.updateSpec().removeField("id").commit();
+
+    // Drop the source field
+    table.updateSchema().deleteColumn("id").commit();
+
+    BaseFilesTable filesTable = new AllFilesTable(table);
+    TableScan scan = filesTable.newScan();
+
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      assertThat(tasks).hasSize(2);
+    }
   }
 
   @Test

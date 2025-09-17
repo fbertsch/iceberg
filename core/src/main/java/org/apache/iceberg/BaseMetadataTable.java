@@ -75,7 +75,10 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable
     for (PartitionField field : spec.fields()) {
       builder.add(field.fieldId(), field.fieldId(), field.name(), Transforms.identity());
     }
-    return builder.build();
+
+    // Enable allowMissingFields for allowing the spec to have missing
+    // source fields in void partition fields
+    return builder.build(true);
   }
 
   /**
