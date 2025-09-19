@@ -120,8 +120,6 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
   private static final String CLEANUP_METADATA_ON_COMMIT_FAILURE = "commit.cleanup-metadata-on-failure";
   private static final boolean CLEANUP_METADATA_ON_COMMIT_FAILURE_DEFAULT = true;
   private static final String NETFLIX_METACAT_FILE_IO_IMPL = "netflix.metacat.io-impl";
-  private static final String NETFLIX_EXPERIMENTAL_BRANCHING_ENABLED = "netflix.experimental.branching-enabled";
-  private static final boolean NETFLIX_EXPERIMENTAL_BRANCHING_ENABLED_DEFAULT = false;
   private static final Predicate<Exception> RETRY_IF = exc ->
       !exc.getClass().getCanonicalName().contains("Unrecoverable") &&
       !(exc instanceof RemoteSigningAccessDeniedException) &&
@@ -387,8 +385,6 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
       }
     }
 
-    validateBranchingEnabled(metadata);
-
     if (secure) {
       SecurityUtil.validateSecureBuckets(metadata.location(), metadata.properties());
       if (!isCreateNewTable() && metadata.properties().getOrDefault(INTERNAL_INHERIT_ACL, "false").equals("true")) {
@@ -587,22 +583,6 @@ class MetacatClientOps extends BaseMetastoreTableOperations {
         io().deleteFile(newMetadataLocation);
       }
     }
-  }
-
-  private void validateBranchingEnabled(TableMetadata metadata) {
-    if (hasBranch(metadata)) {
-      if (conf.getBoolean(NETFLIX_EXPERIMENTAL_BRANCHING_ENABLED, NETFLIX_EXPERIMENTAL_BRANCHING_ENABLED_DEFAULT)) {
-        LOG.warn("*** Branching is not supported yet and can lead to data loss," +
-                " use only for experimental purposes! ***");
-      } else {
-        throw new UnsupportedOperationException("Branching is not supported yet");
-      }
-    }
-  }
-
-  private boolean hasBranch(TableMetadata metadata) {
-    return metadata.refs().entrySet().stream().anyMatch(
-            ref -> ref.getValue().isBranch() && !ref.getKey().equals(SnapshotRef.MAIN_BRANCH));
   }
 
   private String createCloneTableACLs(TableMetadata metadata, String sourceTableACLs) {
