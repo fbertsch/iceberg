@@ -56,6 +56,7 @@ coverage.xml
 .project
 .settings
 bin/
+.vscode/
 
 # Hive/metastore files
 metastore_db/
