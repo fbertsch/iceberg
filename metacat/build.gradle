@@ -93,3 +93,15 @@ dependencies {
   testImplementation(libs.mockito.core)
   testImplementation(libs.mockito.inline)
 }
+
+// Add build info to JAR (like other modules)
+jar {
+  dependsOn rootProject.tasks.buildInfo
+  from("${rootDir}/build") {
+    include 'iceberg-build.properties'
+  }
+  from(rootDir) {
+    include 'LICENSE'
+    include 'NOTICE'
+  }
+}
