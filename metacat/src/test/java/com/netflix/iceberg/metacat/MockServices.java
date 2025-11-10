@@ -76,6 +76,18 @@ public class MockServices
         return mockHttpClient;
     }
 
+    public static HttpClient mockNdcDgsClient(String getMetadataJson)
+            throws IOException
+    {
+        // mock ndc response
+        HttpClient mockHttpClient = mock(HttpClient.class);
+        HttpResponse response = new BasicClosableHttpResponse(
+                new BasicStatusLine(HttpVersion.HTTP_1_1, 200, null));
+        response.setEntity(new StringEntity(getMetadataJson, StandardCharsets.UTF_8));
+        when(mockHttpClient.execute(any(HttpUriRequest.class))).thenReturn(response);
+        return mockHttpClient;
+    }
+
     private static class BasicClosableHttpResponse extends BasicHttpResponse
             implements CloseableHttpResponse
     {

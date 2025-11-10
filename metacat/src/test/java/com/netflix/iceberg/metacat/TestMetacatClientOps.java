@@ -31,7 +31,8 @@ import com.netflix.metacat.shaded.com.google.common.io.Resources;
 import org.apache.commons.io.IOUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpPut;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.Schema;
@@ -56,6 +57,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static com.netflix.iceberg.metacat.MockServices.mockMetacat;
+import static com.netflix.iceberg.metacat.MockServices.mockNdcDgsClient;
 import static com.netflix.iceberg.metacat.MockServices.mockNdcHttpClient;
 import static com.netflix.iceberg.properties.JanitorPropertiesHandler.DATA_TTL_COLUMN_PROP;
 import static com.netflix.iceberg.properties.JanitorPropertiesHandler.DATA_TTL_METHOD_PROP;
@@ -139,11 +141,13 @@ public class TestMetacatClientOps {
             mockParser.when(() -> TableMetadataParser.read(any(), anyString())).thenReturn(mockMetadata);
             // mock ndc response
             HttpClient mockHttpClient = mockNdcHttpClient(ndcGetMetadataJson);
+            // mock ndc dgs response
+            HttpClient mockDgsClient = mockNdcDgsClient("");
             // mock metacat
             Client mockClient = mockMetacat(metacatGetTableString, metacatGetTableString);
             Configuration conf = new Configuration(false);
             conf.setBoolean(NDC_UPDATE_ENABLED_CONF, true);
-            NdcPropertiesHandler ndcHandler = new NdcPropertiesHandler(conf, () -> mockHttpClient);
+            NdcPropertiesHandler ndcHandler = new NdcPropertiesHandler(conf, () -> mockHttpClient, () -> mockDgsClient);
             MetacatClientOps clientOps = new MetacatClientOps(
                     conf,
                     mockClient,
@@ -179,11 +183,13 @@ public class TestMetacatClientOps {
             mockParser.when(() -> TableMetadataParser.read(any(), anyString())).thenReturn(mockMetadata);
             // mock ndc response
             HttpClient mockHttpClient = mockNdcHttpClient(ndcGetMetadataJson);
+            // mock dgs response
+            HttpClient mockDgsClient = mockNdcDgsClient("");
             // mock metacat
             Client mockClient = mockMetacat(metacatGetTableString, metacatGetTableString);
             Configuration conf = new Configuration(false);
             conf.setBoolean(NDC_UPDATE_ENABLED_CONF, true);
-            NdcPropertiesHandler ndcHandler = new NdcPropertiesHandler(conf, () -> mockHttpClient);
+            NdcPropertiesHandler ndcHandler = new NdcPropertiesHandler(conf, () -> mockHttpClient, () -> mockDgsClient);
             MetacatClientOps clientOps = new MetacatClientOps(
                     conf,
                     mockClient,
@@ -220,19 +226,34 @@ public class TestMetacatClientOps {
             clientOps.doCommit(tableMetadata, updated);
 
             // verify what we tried to call the backend with
-            verify(mockHttpClient, times(2)).execute(requestCaptor.capture());
-            HttpPut capturedPut = (HttpPut) requestCaptor.getValue();
+            verify(mockDgsClient, times(1)).execute(requestCaptor.capture());
+            HttpPost capturedPost = (HttpPost) requestCaptor.getValue();
             Assert.assertEquals(
-                    "PUT",
-                    capturedPut.getMethod());
+                    "POST",
+                    capturedPost.getMethod());
             Assert.assertEquals(
-                    URI.create("https://ndc.cluster.us-east-1.prod.cloud.netflix.net:8443/api/v0/metadata"),
-                    capturedPut.getURI());
-            JsonNode actualRequestPayload = JsonUtil.mapper().readTree(capturedPut.getEntity().getContent());
+                    URI.create("https://ndcdgs.vip.us-east-1.prod.cloud.netflix.net:8443/graphql"),
+                    capturedPost.getURI());
+
+            JsonNode actualRequestPayload = JsonUtil.mapper().readTree(capturedPost.getEntity().getContent());
             JsonNode expectedRequestPayload = JsonUtil.mapper().readTree(
-                    "{\"dlmDataCategoryTags\":{\"pi\":\"no\",\"business_unit\":\"ads\"},"
-                                + "\"labels\":[\"ok_to_delete\"],"
-                                + "\"name\":\"ndc://hive:prod/prodhive/vault/oca_session_f\"}");
+                    "{\n" +
+                    "  \"query\" : \"mutation UpdateDatasetMetadata($input: NDC_DatasetMetadataInput!) { ndc_updateDatasetMetadata(input: $input) { void } }\",\n" +
+                    "  \"variables\" : {\n" +
+                    "    \"input\" : {\n" +
+                    "      \"name\" : \"ndc://hive:prod/prodhive/vault/oca_session_f\",\n" +
+                    "      \"dataCategoryTags\" : [ {\n" +
+                    "        \"tag\" : \"pi\",\n" +
+                    "        \"code\" : \"no\"\n" +
+                    "      }, {\n" +
+                    "        \"tag\" : \"business_unit\",\n" +
+                    "        \"code\" : \"ads\"\n" +
+                    "      } ],\n" +
+                    "      \"labels\" : [ \"ok_to_delete\" ]\n" +
+                    "    }\n" +
+                    "  }\n" +
+                    "}"
+            );
             Assert.assertEquals(
                     expectedRequestPayload,
                     actualRequestPayload);
