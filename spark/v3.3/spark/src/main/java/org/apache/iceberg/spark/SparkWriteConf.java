@@ -34,9 +34,11 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
+import scala.collection.JavaConverters;
 
 /**
  * A class for common Iceberg configs for Spark writes.
@@ -212,6 +214,13 @@ public class SparkWriteConf {
     Optional.ofNullable(writeOptions.get("depends-on-tables"))
         .ifPresent(v -> extraSnapshotMetadata.put("dependsOnTables", v));
 
+    // Add session configuration properties with SNAPSHOT_PROPERTY_PREFIX if necessary
+    extraSnapshotMetadata.putAll(
+            PropertyUtil.propertiesWithPrefix(
+                    JavaConverters.mapAsJavaMap(sessionConf.getAll()),
+                    SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX));
+
+    // Add write options, overriding session configuration if necessary
     writeOptions.forEach(
         (key, value) -> {
           if (key.startsWith(SnapshotSummary.EXTRA_METADATA_PREFIX)) {
