@@ -86,6 +86,8 @@ shadowJar {
 
   dependencies {
     exclude(dependency('com.netflix.spectator:spectator-api'))  // Provided by Spark
+    exclude(dependency('software.amazon.awssdk:.*'))
+    exclude(dependency('software.amazon.eventstream:eventstream'))
   }
 
   // Relocate dependencies to avoid conflicts
