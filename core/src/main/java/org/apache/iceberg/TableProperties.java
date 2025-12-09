@@ -333,7 +333,8 @@ public class TableProperties {
   public static final int MIN_SNAPSHOTS_TO_KEEP_DEFAULT = 1;
 
   public static final String MAX_REF_AGE_MS = "history.expire.max-ref-age-ms";
-  public static final long MAX_REF_AGE_MS_DEFAULT = Long.MAX_VALUE;
+  // Netflix-specific: Changed from Long.MAX_VALUE to 30 days
+  public static final long MAX_REF_AGE_MS_DEFAULT = 30L * 24 * 60 * 60 * 1000; // 30 days
 
   public static final String DELETE_ISOLATION_LEVEL = "write.delete.isolation-level";
   public static final String DELETE_ISOLATION_LEVEL_DEFAULT = "serializable";
