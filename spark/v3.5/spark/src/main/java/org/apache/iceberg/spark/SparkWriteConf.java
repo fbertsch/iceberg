@@ -312,7 +312,7 @@ public class SparkWriteConf {
   private boolean useIceberg12DefaultDistributionModeChange(){
     return confParser
             .booleanConf()
-            .option(SparkSQLProperties.USE_DEFAULT_DISTRIBUTION_MODE_CHANGE)
+            .sessionConf(SparkSQLProperties.USE_DEFAULT_DISTRIBUTION_MODE_CHANGE)
             .defaultValue(true)
             .parse();
   }
