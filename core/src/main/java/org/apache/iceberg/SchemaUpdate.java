@@ -60,6 +60,8 @@ public class SchemaUpdate implements UpdateSchema {
   private final Map<String, Integer> addedNameToId = Maps.newHashMap();
   private final Multimap<Integer, Move> moves =
       Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
+  private final Multimap<Integer, Types.NestedField> undeletes =
+      Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
   private int lastColumnId;
   private boolean allowIncompatibleChanges = false;
   private Set<String> identifierFieldNames;
@@ -198,6 +200,110 @@ public class SchemaUpdate implements UpdateSchema {
     deletes.add(field.fieldId());
 
     return this;
+  }
+
+  @Override
+  public UpdateSchema undeleteColumn(String name) {
+    Types.NestedField existingField = findField(name);
+    Preconditions.checkArgument(
+        existingField == null,
+        "Cannot undelete column '%s': a column with this name already exists in the current schema",
+        name);
+
+    Preconditions.checkArgument(
+        base != null,
+        "Cannot undelete column: table metadata is required to access historical schemas");
+
+    DeletedColumnInfo deletedInfo = findDeletedColumn(name);
+    Preconditions.checkArgument(
+        deletedInfo != null,
+        "Cannot undelete column '%s': column not found in any historical schema",
+        name);
+
+    int parentId = deletedInfo.parentId;
+    Types.NestedField originalField = deletedInfo.field;
+
+    // undeleted columns are always optional since new data may not have values
+    Types.NestedField field =
+        Types.NestedField.optional(
+            originalField.fieldId(), originalField.name(), originalField.type(), originalField.doc());
+
+    if (parentId != TABLE_ROOT_ID) {
+      idToParent.put(field.fieldId(), parentId);
+    }
+
+    undeletes.put(parentId, field);
+    addedNameToId.put(name, field.fieldId());
+
+    return this;
+  }
+
+  private static class DeletedColumnInfo {
+    final int parentId;
+    final Types.NestedField field;
+
+    DeletedColumnInfo(int parentId, Types.NestedField field) {
+      this.parentId = parentId;
+      this.field = field;
+    }
+  }
+
+  /** Find the first instance of the deleted column, from most recent to oldest. */
+  private DeletedColumnInfo findDeletedColumn(String name) {
+    List<Schema> schemas = base.schemas();
+
+    String[] parts = name.split("\\.");
+    String parentPath = parts.length > 1 ? String.join(".", java.util.Arrays.copyOf(parts, parts.length - 1)) : null;
+
+    if (parentPath != null) {
+      Types.NestedField currentParent = findField(parentPath);
+      Preconditions.checkArgument(
+          currentParent != null,
+          "Cannot undelete nested column '%s': parent struct '%s' does not exist in current schema. "
+              + "Undelete the parent first.",
+          name,
+          parentPath);
+    }
+
+    for (int i = schemas.size() - 1; i >= 0; i--) {
+      Schema historicalSchema = schemas.get(i);
+
+      Types.NestedField field =
+          caseSensitive
+              ? historicalSchema.findField(name)
+              : historicalSchema.caseInsensitiveFindField(name);
+
+      if (field != null) {
+        int parentId;
+        if (parentPath != null) {
+          Types.NestedField parentField =
+              caseSensitive
+                  ? historicalSchema.findField(parentPath)
+                  : historicalSchema.caseInsensitiveFindField(parentPath);
+
+          if (parentField == null) {
+            continue;
+          }
+
+          Type parentType = parentField.type();
+          if (parentType.isNestedType()) {
+            Type.NestedType nested = parentType.asNestedType();
+            if (nested.isMapType()) {
+              parentField = nested.asMapType().fields().get(1);
+            } else if (nested.isListType()) {
+              parentField = nested.asListType().fields().get(0);
+            }
+          }
+          parentId = parentField.fieldId();
+        } else {
+          parentId = TABLE_ROOT_ID;
+        }
+
+        return new DeletedColumnInfo(parentId, field);
+      }
+    }
+
+    return null;
   }
 
   @Override
@@ -441,7 +547,8 @@ public class SchemaUpdate implements UpdateSchema {
   @Override
   public Schema apply() {
     Schema newSchema =
-        applyChanges(schema, deletes, updates, adds, moves, identifierFieldNames, caseSensitive);
+        applyChanges(
+            schema, deletes, updates, adds, undeletes, moves, identifierFieldNames, caseSensitive);
 
     return newSchema;
   }
@@ -510,6 +617,7 @@ public class SchemaUpdate implements UpdateSchema {
       List<Integer> deletes,
       Map<Integer, Types.NestedField> updates,
       Multimap<Integer, Types.NestedField> adds,
+      Multimap<Integer, Types.NestedField> undeletes,
       Multimap<Integer, Move> moves,
       Set<String> identifierFieldNames,
       boolean caseSensitive) {
@@ -537,9 +645,13 @@ public class SchemaUpdate implements UpdateSchema {
       }
     }
 
-    // apply schema changes
+    Multimap<Integer, Types.NestedField> allAdds =
+        Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
+    allAdds.putAll(adds);
+    allAdds.putAll(undeletes);
+
     Types.StructType struct =
-        TypeUtil.visit(schema, new ApplyChanges(deletes, updates, adds, moves))
+        TypeUtil.visit(schema, new ApplyChanges(deletes, updates, allAdds, moves))
             .asNestedType()
             .asStructType();
 
